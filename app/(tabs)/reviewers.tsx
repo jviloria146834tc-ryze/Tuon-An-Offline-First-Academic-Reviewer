@@ -1,6 +1,7 @@
+
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -11,10 +12,29 @@ import {
   View,
 } from 'react-native';
 
-import { reviewers } from '../../data/reviewers';
+import {
+  getReviewers,
+  SQLiteReviewer,
+} from '../../database/reviewers';
 
 export default function ReviewersScreen() {
   const [search, setSearch] = useState('');
+  const [reviewers, setReviewers] = useState<SQLiteReviewer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError('');
+    getReviewers()
+      .then(data => { if (active) setReviewers(data); })
+      .catch(error => {
+        if (active) setLoadError(error instanceof Error ? error.message : 'Could not load reviewers.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []));
 
   const filteredReviewers = reviewers.filter(
     reviewer =>
@@ -27,7 +47,7 @@ export default function ReviewersScreen() {
 
   const totalDueCards = reviewers.reduce(
     (total, reviewer) =>
-      total + reviewer.dueCards,
+      total + reviewer.due_cards,
     0
   );
 
@@ -127,12 +147,14 @@ export default function ReviewersScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {filteredReviewers.map(reviewer => (
+          {loading && <Text style={styles.emptyText}>Loading reviewers…</Text>}
+          {!!loadError && <Text style={styles.emptyText}>Could not load reviewers: {loadError}</Text>}
+          {!loading && !loadError && filteredReviewers.map(reviewer => (
             <Pressable
-              key={reviewer.id}
+              key={reviewer.reviewer_id}
               onPress={() =>
                 router.push(
-                  `/reviewer/${reviewer.id}`
+                  `/reviewer/${reviewer.reviewer_id}`
                 )
               }
               style={({ pressed }) => [
@@ -184,8 +206,8 @@ export default function ReviewersScreen() {
                 </View>
 
                 <Text style={styles.dueText}>
-                  {reviewer.dueCards}{' '}
-                  {reviewer.dueCards === 1
+                  {reviewer.due_cards}{' '}
+                  {reviewer.due_cards === 1
                     ? 'card'
                     : 'cards'}{' '}
                   due
@@ -199,19 +221,18 @@ export default function ReviewersScreen() {
               />
             </Pressable>
           ))}
-
-          {filteredReviewers.length === 0 && (
+          {!loading && !loadError && filteredReviewers.length === 0 && (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyEmoji}>
                 📚
               </Text>
 
               <Text style={styles.emptyTitle}>
-                No reviewers found
+                {search.trim() ? 'No reviewers found' : 'No reviewers yet'}
               </Text>
 
               <Text style={styles.emptyText}>
-                Try searching for another subject.
+                {search.trim() ? 'Try searching for another subject.' : 'Create a reviewer to get started.'}
               </Text>
             </View>
           )}

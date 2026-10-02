@@ -87,7 +87,7 @@ export default function ReviewScheduleScreen() {
 
         <Text style={styles.subtitle}>
           Set a study reminder and let TUON help you remember
-          when it's time to review.
+          when it&apos;s time to review.
         </Text>
 
         <View style={styles.mainToggleCard}>

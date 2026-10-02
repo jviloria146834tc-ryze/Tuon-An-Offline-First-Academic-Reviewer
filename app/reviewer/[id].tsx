@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useState } from 'react';
 import {
   Pressable,
   SafeAreaView,
@@ -11,13 +12,73 @@ import {
 
 import {
   getReviewerById,
-  ReviewerMaterial,
-} from '../../data/reviewers';
+  SQLiteReviewer,
+} from '../../database/reviewers';
+
+import {
+  getMaterialsByReviewer,
+  SQLiteMaterial,
+} from '../../database/materials';
 
 export default function ReviewerDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const reviewer = getReviewerById(id);
+  const reviewerId = Array.isArray(id) ? id[0] : id;
+
+  const [reviewer, setReviewer] =
+    useState<SQLiteReviewer | null>(null);
+
+  const [materials, setMaterials] =
+    useState<SQLiteMaterial[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const loadReviewer = async () => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        if (!reviewerId) {
+          setReviewer(null);
+          setMaterials([]);
+          return;
+        }
+        const reviewerData = await getReviewerById(reviewerId);
+        if (!active) return;
+        setReviewer(reviewerData);
+        setMaterials(reviewerData ? await getMaterialsByReviewer(reviewerId) : []);
+      } catch (error) {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : 'Could not load reviewer data.');
+        setReviewer(null);
+        setMaterials([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadReviewer();
+    return () => { active = false; };
+  }, [reviewerId]));
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <Ionicons
+            name="hourglass-outline"
+            size={40}
+            color="#58CC02"
+          />
+
+          <Text style={styles.loadingTitle}>
+            Loading reviewer...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!reviewer) {
     return (
@@ -32,16 +93,18 @@ export default function ReviewerDetailScreen() {
           </View>
 
           <Text style={styles.notFoundTitle}>
-            Reviewer not found
+            {loadError ? 'Could not load reviewer' : 'Reviewer not found'}
           </Text>
 
           <Text style={styles.notFoundText}>
-            This reviewer may no longer be available.
+            {loadError || 'This reviewer may no longer be available.'}
           </Text>
 
           <Pressable
             style={styles.backToReviewersButton}
-            onPress={() => router.back()}
+            onPress={() =>
+              router.replace('/(tabs)/reviewers')
+            }
           >
             <Text style={styles.backToReviewersText}>
               GO BACK
@@ -52,7 +115,7 @@ export default function ReviewerDetailScreen() {
     );
   }
 
-  const materialCount = reviewer.materials.length;
+  const materialCount = materials.length;
 
   const hasMaterials = materialCount > 0;
 
@@ -65,21 +128,27 @@ export default function ReviewerDetailScreen() {
           ? 'Keep going! 🌱'
           : 'Great work! ⭐';
 
-  const openMaterial = (
-    material: ReviewerMaterial
-  ) => {
+  function openMaterial(
+    material: SQLiteMaterial
+  ) {
     if (material.type === 'Flashcards') {
-      router.push(`/reviewer/${id}/flashcards`);
+      router.push(
+        `/reviewer/${reviewerId}/flashcards`
+      );
       return;
     }
 
     if (material.type === 'Quiz') {
-      router.push(`/reviewer/${id}/quiz`);
+      router.push(
+        `/reviewer/${reviewerId}/quiz`
+      );
       return;
     }
 
-    router.push(`/reviewer/${id}/material`);
-  };
+    router.push(
+      `/reviewer/${reviewerId}/material`
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -87,11 +156,15 @@ export default function ReviewerDetailScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+
+        {/* HEADER */}
         <View style={styles.header}>
           <Pressable
-  style={styles.backButton}
-  onPress={() => router.replace('/reviewers')}
->
+            style={styles.backButton}
+            onPress={() =>
+              router.replace('/(tabs)/reviewers')
+            }
+          >
             <Ionicons
               name="chevron-back"
               size={24}
@@ -115,7 +188,9 @@ export default function ReviewerDetailScreen() {
           <Pressable
             style={styles.editButton}
             onPress={() =>
-              router.push(`/reviewer/${id}/edit`)
+              router.push(
+                `/reviewer/${reviewerId}/edit`
+              )
             }
           >
             <Ionicons
@@ -126,14 +201,17 @@ export default function ReviewerDetailScreen() {
           </Pressable>
         </View>
 
-        {reviewer.dueCards > 0 ? (
+        {/* CONTINUE LEARNING */}
+        {reviewer.due_cards > 0 ? (
           <Pressable
             style={({ pressed }) => [
               styles.heroCard,
               pressed && styles.pressed,
             ]}
             onPress={() =>
-              router.push(`/reviewer/${id}/flashcards`)
+              router.push(
+                `/reviewer/${reviewerId}/flashcards`
+              )
             }
           >
             <View style={styles.heroIcon}>
@@ -150,8 +228,8 @@ export default function ReviewerDetailScreen() {
               </Text>
 
               <Text style={styles.heroSubtitle}>
-                You have {reviewer.dueCards}{' '}
-                {reviewer.dueCards === 1
+                You have {reviewer.due_cards}{' '}
+                {reviewer.due_cards === 1
                   ? 'card'
                   : 'cards'}{' '}
                 ready for review.
@@ -186,6 +264,7 @@ export default function ReviewerDetailScreen() {
           </View>
         )}
 
+        {/* MASTERY */}
         <View style={styles.progressCard}>
           <View>
             <Text style={styles.progressLabel}>
@@ -207,7 +286,10 @@ export default function ReviewerDetailScreen() {
                 style={[
                   styles.progressFill,
                   {
-                    width: `${reviewer.mastery}%`,
+                    width: `${Math.min(
+                      Math.max(reviewer.mastery, 0),
+                      100
+                    )}%`,
                   },
                 ]}
               />
@@ -215,6 +297,7 @@ export default function ReviewerDetailScreen() {
           </View>
         </View>
 
+        {/* STUDY TOOLS */}
         <Text style={styles.sectionLabel}>
           STUDY TOOLS
         </Text>
@@ -227,7 +310,9 @@ export default function ReviewerDetailScreen() {
             background="#EAF9DF"
             iconColor="#58CC02"
             onPress={() =>
-              router.push(`/reviewer/${id}/material`)
+              router.push(
+                `/reviewer/${reviewerId}/material`
+              )
             }
           />
 
@@ -239,7 +324,7 @@ export default function ReviewerDetailScreen() {
             iconColor="#1CB0F6"
             onPress={() =>
               router.push(
-                `/reviewer/${id}/quiz-generator`
+                `/reviewer/${reviewerId}/quiz-generator`
               )
             }
           />
@@ -252,7 +337,7 @@ export default function ReviewerDetailScreen() {
             iconColor="#9069CD"
             onPress={() =>
               router.push(
-                `/reviewer/${id}/flashcard-generator`
+                `/reviewer/${reviewerId}/flashcard-generator`
               )
             }
           />
@@ -265,7 +350,7 @@ export default function ReviewerDetailScreen() {
             iconColor="#FF9600"
             onPress={() =>
               router.push(
-                `/reviewer/${id}/quick-capture`
+                `/reviewer/${reviewerId}/quick-capture`
               )
             }
           />
@@ -278,12 +363,13 @@ export default function ReviewerDetailScreen() {
             iconColor="#FF9600"
             onPress={() =>
               router.push(
-                `/reviewer/${id}/review-schedule`
+                `/reviewer/${reviewerId}/review-schedule`
               )
             }
           />
         </View>
 
+        {/* MATERIALS HEADER */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionLabel}>
             YOUR MATERIALS
@@ -291,18 +377,21 @@ export default function ReviewerDetailScreen() {
 
           <Text style={styles.materialCount}>
             {materialCount}{' '}
-            {materialCount === 1 ? 'item' : 'items'}
+            {materialCount === 1
+              ? 'item'
+              : 'items'}
           </Text>
         </View>
 
+        {/* MATERIALS */}
         {hasMaterials ? (
-          reviewer.materials.map(material => (
+          materials.map(material => (
             <MaterialCard
-              key={material.id}
+              key={material.material_id}
               icon={getMaterialIcon(material.type)}
               title={material.title}
               type={material.type}
-              info={material.info}
+              info={material.info ?? ''}
               mastery={material.mastery}
               onPress={() =>
                 openMaterial(material)
@@ -334,7 +423,9 @@ export default function ReviewerDetailScreen() {
                 pressed && styles.pressed,
               ]}
               onPress={() =>
-                router.push(`/reviewer/${id}/material`)
+                router.push(
+                  `/reviewer/${reviewerId}/material`
+                )
               }
             >
               <Ionicons
@@ -349,13 +440,14 @@ export default function ReviewerDetailScreen() {
             </Pressable>
           </View>
         )}
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 function getMaterialIcon(
-  type: ReviewerMaterial['type']
+  type: string
 ): keyof typeof Ionicons.glyphMap {
   if (type === 'Flashcards') {
     return 'albums-outline';
@@ -459,7 +551,8 @@ function MaterialCard({
         </Text>
 
         <Text style={styles.materialSubtitle}>
-          {type} • {info}
+          {type}
+          {info ? ` • ${info}` : ''}
         </Text>
       </View>
 
@@ -499,6 +592,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 50,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  loadingTitle: {
+    marginTop: 12,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#555555',
   },
 
   header: {

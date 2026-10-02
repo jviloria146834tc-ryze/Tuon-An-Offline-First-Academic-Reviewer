@@ -67,7 +67,7 @@ export default function QuizGeneratorScreen() {
         </View>
 
         <Text style={styles.title}>
-          Let's test your knowledge!
+          Let&apos;s test your knowledge!
         </Text>
 
         <Text style={styles.subtitle}>

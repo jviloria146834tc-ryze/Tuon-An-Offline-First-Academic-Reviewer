@@ -64,7 +64,7 @@ export default function Dashboard() {
         {/* TODAY'S REVIEW */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>
-            Today's Review
+            Today&apos;s Review
           </Text>
 
           <Text style={styles.sectionInfo}>

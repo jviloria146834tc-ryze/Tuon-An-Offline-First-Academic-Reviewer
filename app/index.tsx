@@ -144,7 +144,7 @@ export default function AuthenticationScreen() {
 
             <Text style={styles.footerText}>
               Your reviewers stay available even when
-              you're offline.
+              you&apos;re offline.
             </Text>
           </View>
 

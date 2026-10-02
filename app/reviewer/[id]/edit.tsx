@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,28 +11,51 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { getReviewerById, updateReviewer } from '../../../database/reviewers';
 
 export default function EditReviewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const [name, setName] = useState('IT 26');
-  const [subject, setSubject] = useState(
-    'Human Computer Interaction'
-  );
-  const [description, setDescription] = useState(
-    'Review materials for Human Computer Interaction.'
-  );
+  const reviewerId = Array.isArray(id) ? id[0] : id;
+  const [name, setName] = useState('');
+  const [subject, setSubject] = useState('');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    getReviewerById(reviewerId ?? '').then(reviewer => {
+      if (!active) return;
+      if (!reviewer) {
+        Alert.alert('Reviewer not found', 'This reviewer is no longer available.');
+        router.back();
+        return;
+      }
+      setName(reviewer.name);
+      setSubject(reviewer.subject);
+      setDescription(reviewer.description ?? '');
+    }).catch(error => {
+      if (active) Alert.alert('Could not load reviewer', error instanceof Error ? error.message : 'Please try again.');
+    }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [reviewerId]);
 
   const canSave =
     name.trim().length > 0 &&
     subject.trim().length > 0;
 
-  const saveReviewer = () => {
-    if (!canSave) {
-      return;
+  const saveReviewer = async () => {
+    if (!canSave || !reviewerId || saving) return;
+    setSaving(true);
+    try {
+      await updateReviewer(reviewerId, { name, subject, description });
+      router.replace(`/reviewer/${reviewerId}`);
+    } catch (error) {
+      Alert.alert('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
     }
-
-   router.replace(`/reviewer/${id}`);
   };
 
   return (
@@ -39,9 +63,7 @@ export default function EditReviewerScreen() {
       <View style={styles.header}>
         <Pressable
           style={styles.backButton}
-          onPress={() =>
-  router.replace(`/reviewer/${id}`)
-}
+            onPress={() => router.replace(`/reviewer/${reviewerId}`)}
         >
           <Ionicons
             name="chevron-back"
@@ -140,8 +162,7 @@ export default function EditReviewerScreen() {
           />
 
           <Text style={styles.infoText}>
-            Changes are temporary during frontend testing.
-            SQLite persistence will be connected later.
+            {loading ? 'Loading reviewer details…' : 'Changes are saved locally on this device.'}
           </Text>
         </View>
       </ScrollView>
@@ -152,7 +173,7 @@ export default function EditReviewerScreen() {
             styles.saveButton,
             !canSave && styles.disabledButton,
           ]}
-          disabled={!canSave}
+            disabled={!canSave || loading || saving}
           onPress={saveReviewer}
         >
           <Ionicons

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,17 +15,26 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { createReviewer } from '../../database/reviewers';
 
 export default function CreateReviewerScreen() {
   const [reviewerName, setReviewerName] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleCreate = () => {
-    // Frontend prototype only.
-    // SQLite saving will be added later.
-    router.replace('/(tabs)/reviewers');
+  const handleCreate = async () => {
+    if (!reviewerName.trim() || !subject.trim() || saving) return;
+    setSaving(true);
+    try {
+      await createReviewer({ name: reviewerName, subject, description });
+      router.replace('/(tabs)/reviewers');
+    } catch (error) {
+      Alert.alert('Could not create reviewer', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -159,7 +169,7 @@ export default function CreateReviewerScreen() {
               </Text>
 
               <Text style={styles.reminderDescription}>
-                Get reminded when it's time to review.
+                Get reminded when it&apos;s time to review.
               </Text>
             </View>
 
@@ -205,8 +215,10 @@ export default function CreateReviewerScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.createButton,
+              (!reviewerName.trim() || !subject.trim() || saving) && { opacity: 0.5 },
               pressed && styles.buttonPressed,
             ]}
+            disabled={!reviewerName.trim() || !subject.trim() || saving}
             onPress={handleCreate}
           >
             <Text style={styles.createButtonText}>

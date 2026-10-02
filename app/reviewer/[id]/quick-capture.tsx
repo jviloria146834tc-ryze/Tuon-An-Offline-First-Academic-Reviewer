@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,10 +11,14 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { saveQuickCapture } from "../../../database/activity";
 
 export default function QuickCaptureScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const reviewerId = Array.isArray(id) ? id[0] : id;
   const [step, setStep] = useState<"capture" | "preview">("capture");
   const [extractedText, setExtractedText] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const mockScan = () => {
     setExtractedText(
@@ -23,8 +28,17 @@ export default function QuickCaptureScreen() {
     setStep("preview");
   };
 
-  const saveMaterial = () => {
-    router.back();
+  const saveMaterial = async () => {
+    if (!reviewerId || !extractedText.trim() || saving) return;
+    setSaving(true);
+    try {
+      await saveQuickCapture(reviewerId, "Quick Capture", extractedText);
+      router.back();
+    } catch (error) {
+      Alert.alert("Could not save capture", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (step === "preview") {
@@ -98,9 +112,9 @@ export default function QuickCaptureScreen() {
           <Pressable
             style={[
               styles.saveButton,
-              !extractedText.trim() && styles.disabledButton,
+              (!extractedText.trim() || saving) && styles.disabledButton,
             ]}
-            disabled={!extractedText.trim()}
+            disabled={!extractedText.trim() || saving}
             onPress={saveMaterial}
           >
             <Ionicons

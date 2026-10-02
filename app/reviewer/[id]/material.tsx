@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -10,11 +11,33 @@ import {
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { createMaterial } from '../../../database/materials';
 
 export default function AddMaterialScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const reviewerId = Array.isArray(id) ? id[0] : id;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const saveMaterial = async () => {
+    if (!reviewerId || !title.trim() || saving) return;
+    setSaving(true);
+    try {
+      await createMaterial({
+        reviewer_id: reviewerId,
+        title,
+        content,
+        info: content.trim() ? `${content.trim().length} characters` : null,
+      });
+      router.back();
+    } catch (error) {
+      Alert.alert('Could not save material', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -174,7 +197,8 @@ export default function AddMaterialScreen() {
             styles.saveButton,
             pressed && styles.buttonPressed,
           ]}
-          onPress={() => router.back()}
+          disabled={!title.trim() || saving}
+          onPress={saveMaterial}
         >
           <Ionicons
             name="checkmark-circle"
