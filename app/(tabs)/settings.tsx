@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -9,6 +11,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { router } from 'expo-router';
+import { getCurrentAuthUser, logoutUser } from '../../firebase/auth';
+import { getSyncStatusInfo, performSync, SyncStatusInfo } from '../../firebase/sync';
 
 export default function SettingsScreen() {
   const [studyReminders, setStudyReminders] =
@@ -19,6 +24,87 @@ export default function SettingsScreen() {
 
   const [darkMode, setDarkMode] =
     useState(false);
+
+  const [syncInfo, setSyncInfo] = useState<SyncStatusInfo | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [userEmail, setUserEmail] = useState(() => {
+    const user = getCurrentAuthUser();
+    return user?.email || 'Offline / Guest Mode';
+  });
+  const [userName, setUserName] = useState(() => {
+    const user = getCurrentAuthUser();
+    return user?.displayName || user?.email?.split('@')[0] || 'Local Student';
+  });
+
+  const refreshSyncAndUser = useCallback(async () => {
+    const user = getCurrentAuthUser();
+    setUserEmail(user?.email || 'Offline / Guest Mode');
+    setUserName(user?.displayName || user?.email?.split('@')[0] || 'Local Student');
+    const info = await getSyncStatusInfo();
+    setSyncInfo(info);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getSyncStatusInfo().then(info => {
+      if (active) {
+        setSyncInfo(info);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await performSync();
+      await refreshSyncAndUser();
+      if (res.success) {
+        Alert.alert(
+          'Sync Complete',
+          `Successfully pushed ${res.pushedCount} local updates and pulled ${res.pulledCount} cloud items.`
+        );
+      } else {
+        Alert.alert('Sync Incomplete', res.error || 'Could not complete cloud synchronization.');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown sync error.';
+      Alert.alert('Sync Error', msg);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Log Out',
+      'Are you sure you want to log out? Your local data will remain saved on this device.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            await logoutUser();
+            router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
+  const formatLastSync = (timestamp: string | null | undefined) => {
+    if (!timestamp) return 'Not synced yet';
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return timestamp;
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -61,11 +147,11 @@ export default function SettingsScreen() {
 
             <View style={styles.profileContent}>
               <Text style={styles.profileName}>
-                Student
+                {userName}
               </Text>
 
               <Text style={styles.profileEmail}>
-                student@tuon.app
+                {userEmail}
               </Text>
             </View>
 
@@ -155,7 +241,7 @@ export default function SettingsScreen() {
                 </Text>
 
                 <Text style={styles.settingSubtitle}>
-                  Study data stored on this device
+                  Stored locally in device SQLite
                 </Text>
               </View>
 
@@ -173,14 +259,14 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#E6F4FF',
+                    backgroundColor: syncInfo?.isConfigured ? '#E6F4FF' : '#F5F5F5',
                   },
                 ]}
               >
                 <Ionicons
                   name="cloud-outline"
                   size={21}
-                  color="#1CB0F6"
+                  color={syncInfo?.isConfigured ? '#1CB0F6' : '#999999'}
                 />
               </View>
 
@@ -190,13 +276,49 @@ export default function SettingsScreen() {
                 </Text>
 
                 <Text style={styles.settingSubtitle}>
-                  Firebase sync will be connected later
+                  {syncInfo?.isConfigured
+                    ? syncInfo.pendingCount > 0
+                      ? `${syncInfo.pendingCount} local change(s) queued`
+                      : 'All changes synced with cloud'
+                    : 'Firebase not configured (offline mode)'}
                 </Text>
               </View>
 
-              <View style={styles.pendingBadge}>
-                <Text style={styles.pendingBadgeText}>
-                  LATER
+              <View
+                style={[
+                  styles.statusBadge,
+                  {
+                    backgroundColor: !syncInfo?.isConfigured
+                      ? '#EEEEEE'
+                      : isSyncing
+                      ? '#E6F4FF'
+                      : syncInfo.state === 'error'
+                      ? '#FFF0F0'
+                      : '#EAF9DF',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    {
+                      color: !syncInfo?.isConfigured
+                        ? '#888888'
+                        : isSyncing
+                        ? '#1CB0F6'
+                        : syncInfo.state === 'error'
+                        ? '#FF4B4B'
+                        : '#58CC02',
+                    },
+                  ]}
+                >
+                  {!syncInfo?.isConfigured
+                    ? 'OFFLINE'
+                    : isSyncing
+                    ? 'SYNCING'
+                    : syncInfo.state === 'error'
+                    ? 'ERROR'
+                    : 'ACTIVE'}
                 </Text>
               </View>
             </View>
@@ -225,10 +347,57 @@ export default function SettingsScreen() {
                 </Text>
 
                 <Text style={styles.settingSubtitle}>
-                  Not synced yet
+                  {formatLastSync(syncInfo?.lastSyncedAt)}
                 </Text>
               </View>
             </View>
+
+            <View style={styles.divider} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.settingRow,
+                pressed && styles.pressed,
+                isSyncing && { opacity: 0.6 },
+              ]}
+              onPress={handleSync}
+              disabled={isSyncing}
+            >
+              <View
+                style={[
+                  styles.settingIcon,
+                  {
+                    backgroundColor: '#EAF9DF',
+                  },
+                ]}
+              >
+                {isSyncing ? (
+                  <ActivityIndicator size="small" color="#58CC02" />
+                ) : (
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={21}
+                    color="#58CC02"
+                  />
+                )}
+              </View>
+
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, { color: '#58CC02' }]}>
+                  {isSyncing ? 'Syncing...' : 'Sync Now'}
+                </Text>
+
+                <Text style={styles.settingSubtitle}>
+                  Push offline changes and fetch cloud updates
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color="#BBBBBB"
+              />
+            </Pressable>
           </View>
 
           <Text style={styles.sectionLabel}>
@@ -299,6 +468,7 @@ export default function SettingsScreen() {
               styles.logoutButton,
               pressed && styles.pressed,
             ]}
+            onPress={handleLogout}
           >
             <Ionicons
               name="log-out-outline"

@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 const DATABASE_NAME = 'tuon.db';
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 
 let database: SQLite.SQLiteDatabase | null = null;
 let openingDatabase: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -19,6 +19,18 @@ async function openDatabase() {
     });
   }
   return openingDatabase;
+}
+
+async function ensureColumn(
+  db: SQLite.SQLiteDatabase,
+  table: string,
+  column: string,
+  type: string
+): Promise<void> {
+  const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (!columns.some(c => c.name === column)) {
+    await db.execAsync(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 export async function initializeDatabase(): Promise<void> {
@@ -46,6 +58,8 @@ export async function initializeDatabase(): Promise<void> {
           due_cards INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
         );
 
@@ -59,6 +73,8 @@ export async function initializeDatabase(): Promise<void> {
           mastery REAL NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (reviewer_id) REFERENCES reviewers(reviewer_id) ON DELETE CASCADE
         );
 
@@ -69,6 +85,8 @@ export async function initializeDatabase(): Promise<void> {
           answer TEXT NOT NULL,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
         );
 
@@ -79,6 +97,7 @@ export async function initializeDatabase(): Promise<void> {
           repetitions INTEGER NOT NULL DEFAULT 0,
           next_review_date TEXT,
           last_reviewed_at TEXT,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (flashcard_id) REFERENCES flashcards(flashcard_id) ON DELETE CASCADE
         );
 
@@ -88,6 +107,9 @@ export async function initializeDatabase(): Promise<void> {
           title TEXT NOT NULL,
           question_count INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (material_id) REFERENCES materials(material_id) ON DELETE CASCADE
         );
 
@@ -101,6 +123,9 @@ export async function initializeDatabase(): Promise<void> {
           option_d TEXT,
           correct_answer TEXT,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
         );
 
@@ -110,6 +135,7 @@ export async function initializeDatabase(): Promise<void> {
           score INTEGER NOT NULL DEFAULT 0,
           total_questions INTEGER NOT NULL DEFAULT 0,
           completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          synced_at TEXT,
           FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
         );
 
@@ -120,6 +146,7 @@ export async function initializeDatabase(): Promise<void> {
           started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ended_at TEXT,
           activity_type TEXT,
+          synced_at TEXT,
           FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
           FOREIGN KEY (reviewer_id) REFERENCES reviewers(reviewer_id) ON DELETE CASCADE
         );
@@ -130,7 +157,24 @@ export async function initializeDatabase(): Promise<void> {
           title TEXT,
           content TEXT NOT NULL,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TEXT,
+          synced_at TEXT,
           FOREIGN KEY (reviewer_id) REFERENCES reviewers(reviewer_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_meta (
+          key TEXT PRIMARY KEY NOT NULL,
+          value TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS mutation_queue (
+          mutation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          table_name TEXT NOT NULL,
+          record_id TEXT NOT NULL,
+          action TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE INDEX IF NOT EXISTS idx_reviewers_student ON reviewers(student_id);
@@ -139,16 +183,30 @@ export async function initializeDatabase(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_quizzes_material ON quizzes(material_id);
         CREATE INDEX IF NOT EXISTS idx_attempts_quiz ON quiz_attempts(quiz_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_reviewer ON study_sessions(reviewer_id);
+        CREATE INDEX IF NOT EXISTS idx_mutation_queue_created ON mutation_queue(created_at);
       `);
 
-      // Existing installations created materials before the content field was
-      // needed. Keep that data and apply this additive migration in place.
-      const materialColumns = await db.getAllAsync<{ name: string }>(
-        'PRAGMA table_info(materials)'
-      );
-      if (!materialColumns.some(column => column.name === 'content')) {
-        await db.execAsync('ALTER TABLE materials ADD COLUMN content TEXT');
-      }
+      // Additive column migrations to support existing databases
+      await ensureColumn(db, 'materials', 'content', 'TEXT');
+      await ensureColumn(db, 'reviewers', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'reviewers', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'materials', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'materials', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'flashcards', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'flashcards', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'srs_progress', 'updated_at', 'TEXT');
+      await ensureColumn(db, 'quizzes', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'quizzes', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'quizzes', 'updated_at', 'TEXT');
+      await ensureColumn(db, 'quiz_questions', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'quiz_questions', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'quiz_questions', 'updated_at', 'TEXT');
+      await ensureColumn(db, 'quiz_attempts', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'study_sessions', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'quick_captures', 'deleted_at', 'TEXT');
+      await ensureColumn(db, 'quick_captures', 'synced_at', 'TEXT');
+      await ensureColumn(db, 'quick_captures', 'updated_at', 'TEXT');
+
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
     })().catch(error => {
       initialization = null;

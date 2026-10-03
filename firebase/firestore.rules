@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Students / Users Collection - strictly private
+    match /students/{studentId} {
+      allow read, write: if isOwner(studentId);
+    }
+
+    // Reviewers Collection - strictly private to each student
+    match /reviewers/{reviewerId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Materials Collection - strictly private to each student
+    match /materials/{materialId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Flashcards Collection - strictly private to each student
+    match /flashcards/{flashcardId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // SRS Progress Collection - strictly private to each student
+    match /srs_progress/{flashcardId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Quizzes Collection - strictly private to each student
+    match /quizzes/{quizId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Quiz Questions Collection - strictly private to each student
+    match /quiz_questions/{questionId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Quiz Attempts Collection - strictly private to each student
+    match /quiz_attempts/{attemptId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Study Sessions Collection - strictly private to each student
+    match /study_sessions/{sessionId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+
+    // Quick Captures Collection - strictly private to each student
+    match /quick_captures/{captureId} {
+      allow read: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.student_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && resource.data.student_id == request.auth.uid;
+    }
+  }
+}

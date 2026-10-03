@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,23 +12,63 @@ import {
 } from 'react-native';
 
 import { router } from 'expo-router';
+import { loginWithEmail, registerWithEmail, getCurrentAuthUser } from '../firebase/auth';
+import { performSync } from '../firebase/sync';
 
 export default function AuthenticationScreen() {
   const [activeTab, setActiveTab] =
     useState<'login' | 'register'>('login');
 
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = () => {
-    if (activeTab === 'login') {
-      // Temporary navigation.
-      // Firebase authentication will be added later.
+  useEffect(() => {
+    // If user is already authenticated, allow instant navigation
+    const currentUser = getCurrentAuthUser();
+    if (currentUser) {
       router.replace('/(tabs)/dashboard');
-    } else {
-      // Registration functionality will be added later.
-      console.log('Register:', email);
     }
+  }, []);
+
+  const handleSubmit = async () => {
+    setErrorMessage('');
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage('Please fill in both email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (activeTab === 'login') {
+        const res = await loginWithEmail(email, password);
+        if (res.success) {
+          performSync().catch(() => {});
+          router.replace('/(tabs)/dashboard');
+        } else {
+          setErrorMessage(res.error || 'Login failed. Please check your credentials.');
+        }
+      } else {
+        const res = await registerWithEmail(email, password, name);
+        if (res.success) {
+          performSync().catch(() => {});
+          router.replace('/(tabs)/dashboard');
+        } else {
+          setErrorMessage(res.error || 'Registration failed.');
+        }
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Authentication failed.';
+      setErrorMessage(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleContinueOffline = () => {
+    router.replace('/(tabs)/dashboard');
   };
 
   return (
@@ -58,7 +99,10 @@ export default function AuthenticationScreen() {
                 styles.tab,
                 activeTab === 'login' && styles.activeTab,
               ]}
-              onPress={() => setActiveTab('login')}
+              onPress={() => {
+                setActiveTab('login');
+                setErrorMessage('');
+              }}
             >
               <Text
                 style={[
@@ -77,7 +121,10 @@ export default function AuthenticationScreen() {
                 activeTab === 'register' &&
                   styles.activeTab,
               ]}
-              onPress={() => setActiveTab('register')}
+              onPress={() => {
+                setActiveTab('register');
+                setErrorMessage('');
+              }}
             >
               <Text
                 style={[
@@ -91,8 +138,31 @@ export default function AuthenticationScreen() {
             </Pressable>
           </View>
 
+          {errorMessage ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            </View>
+          ) : null}
+
           {/* FORM */}
           <View style={styles.form}>
+            {activeTab === 'register' && (
+              <>
+                <Text style={styles.label}>
+                  FULL NAME
+                </Text>
+
+                <TextInput
+                  style={styles.input}
+                  placeholder="Juan dela Cruz"
+                  placeholderTextColor="#A0A0A0"
+                  value={name}
+                  onChangeText={setName}
+                  autoCapitalize="words"
+                />
+              </>
+            )}
+
             <Text style={styles.label}>
               EMAIL ADDRESS
             </Text>
@@ -105,6 +175,7 @@ export default function AuthenticationScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!loading}
             />
 
             <Text style={styles.label}>
@@ -118,20 +189,37 @@ export default function AuthenticationScreen() {
               value={password}
               onChangeText={setPassword}
               secureTextEntry
+              editable={!loading}
             />
 
             {/* MAIN BUTTON */}
             <Pressable
               onPress={handleSubmit}
+              disabled={loading}
               style={({ pressed }) => [
                 styles.primaryButton,
                 pressed && styles.buttonPressed,
+                loading && styles.buttonDisabled,
               ]}
             >
-              <Text style={styles.primaryButtonText}>
-                {activeTab === 'login'
-                  ? 'Log In'
-                  : 'Create Account'}
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.primaryButtonText}>
+                  {activeTab === 'login'
+                    ? 'Log In'
+                    : 'Create Account'}
+                </Text>
+              )}
+            </Pressable>
+
+            {/* OFFLINE GUEST ACCESS */}
+            <Pressable
+              onPress={handleContinueOffline}
+              style={styles.offlineButton}
+            >
+              <Text style={styles.offlineButtonText}>
+                Continue in Offline Mode
               </Text>
             </Pressable>
           </View>
@@ -283,6 +371,43 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     textTransform: 'uppercase',
     letterSpacing: 0.7,
+  },
+
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+
+  offlineButton: {
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    borderWidth: 1.5,
+    borderColor: '#D4DDD4',
+    backgroundColor: '#FFFFFF',
+  },
+
+  offlineButtonText: {
+    color: '#555555',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  errorContainer: {
+    backgroundColor: '#FDECEA',
+    borderWidth: 1,
+    borderColor: '#F5C2C7',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+
+  errorBannerText: {
+    color: '#D32F2F',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 
   footer: {
