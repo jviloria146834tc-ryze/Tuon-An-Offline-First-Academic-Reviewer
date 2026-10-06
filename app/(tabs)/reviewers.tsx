@@ -1,10 +1,9 @@
-
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,13 +11,38 @@ import {
   View,
 } from 'react-native';
 
-import {
-  getReviewers,
-  SQLiteReviewer,
-} from '../../database/reviewers';
+import { getReviewers, SQLiteReviewer } from '../../database/reviewers';
+import { COLORS } from '../../utils/theme';
+import { useAppTheme } from '../../utils/ThemeContext';
+
+const FILTERS = ['All', 'In Progress', 'Completed', 'Archived'] as const;
+type ReviewerFilter = (typeof FILTERS)[number];
+
+function getStatus(reviewer: SQLiteReviewer): Exclude<ReviewerFilter, 'All' | 'Archived'> | 'Active' {
+  if (reviewer.card_count > 0 && reviewer.mastery === 100 && reviewer.due_cards === 0) return 'Completed';
+  if (reviewer.card_count > 0) return 'In Progress';
+  return 'Active';
+}
+
+function getLastStudied(value: string | null): string {
+  if (!value) return 'Last studied: Never';
+  const date = new Date(value.replace(' ', 'T'));
+  if (Number.isNaN(date.getTime())) return 'Last studied: Recently';
+  const today = new Date();
+  const dayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const studiedDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.max(0, Math.floor((dayStart - studiedDay) / 86_400_000));
+  if (days === 0) return 'Last studied: Today';
+  if (days === 1) return 'Last studied: Yesterday';
+  if (days < 7) return `Last studied: ${days} days ago`;
+  if (days < 14) return 'Last studied: 1 week ago';
+  return `Last studied: ${Math.floor(days / 7)} weeks ago`;
+}
 
 export default function ReviewersScreen() {
+  const { dark } = useAppTheme();
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<ReviewerFilter>('All');
   const [reviewers, setReviewers] = useState<SQLiteReviewer[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -36,222 +60,121 @@ export default function ReviewersScreen() {
     return () => { active = false; };
   }, []));
 
-  const filteredReviewers = reviewers.filter(
-    reviewer =>
-      `${reviewer.name} ${reviewer.subject}`
-        .toLowerCase()
-        .includes(search.trim().toLowerCase())
-  );
-
-  const totalReviewers = reviewers.length;
-
-  const totalDueCards = reviewers.reduce(
-    (total, reviewer) =>
-      total + reviewer.due_cards,
-    0
-  );
-
-  const averageMastery =
-    reviewers.length > 0
-      ? Math.round(
-          reviewers.reduce(
-            (total, reviewer) =>
-              total + reviewer.mastery,
-            0
-          ) / reviewers.length
-        )
-      : 0;
+  const filteredReviewers = useMemo(() => reviewers.filter(reviewer => {
+    const matchesSearch = `${reviewer.name} ${reviewer.subject}`.toLowerCase().includes(search.trim().toLowerCase());
+    const status = getStatus(reviewer);
+    const matchesFilter = filter === 'All'
+      || (filter === 'Archived' ? false : status === filter);
+    return matchesSearch && matchesFilter;
+  }), [filter, reviewers, search]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <View style={styles.container}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.smallHeading}>
-              YOUR LIBRARY
-            </Text>
-
-            <Text style={styles.title}>
-              My Reviewers
-            </Text>
+            <Text style={[styles.eyebrow, dark && { color: '#7CB0FF' }]}>YOUR LIBRARY</Text>
+            <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Reviewers</Text>
           </View>
-
-          <Pressable style={styles.profileButton}>
-            <Ionicons
-              name="person-outline"
-              size={23}
-              color="#3C3C3C"
-            />
+          <Pressable
+            style={styles.profileButton}
+            onPress={() => router.push('/(tabs)/settings')}
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+          >
+            <Ionicons name="person-outline" size={21} color="#102A68" />
           </Pressable>
         </View>
 
         <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={20}
-            color="#8A8A8A"
-          />
-
+          <Ionicons name="search-outline" size={17} color="#9AA3B2" />
           <TextInput
             style={styles.searchInput}
             placeholder="Search reviewers..."
-            placeholderTextColor="#999999"
+            placeholderTextColor="#9AA3B2"
             value={search}
             onChangeText={setSearch}
+            accessibilityLabel="Search reviewers"
           />
+          {!!search && (
+            <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search">
+              <Ionicons name="close-circle" size={18} color="#A1A8B3" />
+            </Pressable>
+          )}
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>
-              {totalReviewers}
-            </Text>
-
-            <Text style={styles.summaryLabel}>
-              Reviewers
-            </Text>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>
-              {totalDueCards}
-            </Text>
-
-            <Text style={styles.summaryLabel}>
-              Due Cards
-            </Text>
-          </View>
-
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryNumber}>
-              {averageMastery}%
-            </Text>
-
-            <Text style={styles.summaryLabel}>
-              Mastery
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.listHeading}>
-          <Text style={styles.sectionTitle}>
-            All Reviewers
-          </Text>
-
-          <Text style={styles.resultCount}>
-            {filteredReviewers.length} found
-          </Text>
+        <View style={styles.filterRow}>
+          {FILTERS.map(item => (
+            <Pressable
+              key={item}
+              onPress={() => setFilter(item)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: filter === item }}
+              style={[styles.filterChip, filter === item && styles.filterChipSelected]}
+            >
+              <Text style={[styles.filterText, filter === item && styles.filterTextSelected]}>{item}</Text>
+            </Pressable>
+          ))}
         </View>
 
         <ScrollView
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
         >
-          {loading && <Text style={styles.emptyText}>Loading reviewers…</Text>}
-          {!!loadError && <Text style={styles.emptyText}>Could not load reviewers: {loadError}</Text>}
-          {!loading && !loadError && filteredReviewers.map(reviewer => (
-            <Pressable
-              key={reviewer.reviewer_id}
-              onPress={() =>
-                router.push(
-                  `/reviewer/${reviewer.reviewer_id}`
-                )
-              }
-              style={({ pressed }) => [
-                styles.reviewerCard,
-                pressed && styles.cardPressed,
-              ]}
-            >
-              <View style={styles.iconBox}>
-                <Ionicons
-                  name="book-outline"
-                  size={27}
-                  color="#58CC02"
-                />
-              </View>
-
-              <View style={styles.reviewerContent}>
-                <Text style={styles.courseCode}>
-                  {reviewer.name}
-                </Text>
-
-                <Text
-                  style={styles.reviewerTitle}
-                  numberOfLines={1}
-                >
-                  {reviewer.subject}
-                </Text>
-
-                <View style={styles.progressRow}>
-                  <View style={styles.progressTrack}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {
-                          width: `${Math.min(
-                            Math.max(
-                              reviewer.mastery,
-                              0
-                            ),
-                            100
-                          )}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <Text style={styles.progressNumber}>
-                    {reviewer.mastery}%
-                  </Text>
+          {loading && <Text style={styles.message}>Loading reviewers...</Text>}
+          {!!loadError && <Text style={styles.message}>Could not load reviewers: {loadError}</Text>}
+          {!loading && !loadError && filteredReviewers.map(reviewer => {
+            const status = getStatus(reviewer);
+            const isDone = status === 'Completed';
+            return (
+              <Pressable
+                key={reviewer.reviewer_id}
+                onPress={() => router.push(`/reviewer/${reviewer.reviewer_id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${reviewer.name}, ${reviewer.mastery} percent mastery`}
+                style={({ pressed }) => [styles.reviewerCard, pressed && styles.cardPressed]}
+              >
+                <View style={[styles.masteryRing, isDone && styles.masteryRingDone]}>
+                  <Text style={styles.masteryText}>{Math.round(reviewer.mastery)}%</Text>
                 </View>
-
-                <Text style={styles.dueText}>
-                  {reviewer.due_cards}{' '}
-                  {reviewer.due_cards === 1
-                    ? 'card'
-                    : 'cards'}{' '}
-                  due
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={21}
-                color="#BBBBBB"
-              />
-            </Pressable>
-          ))}
+                <View style={styles.reviewerContent}>
+                  <Text style={styles.reviewerName} numberOfLines={1}>{reviewer.name}</Text>
+                  <Text style={styles.metadata} numberOfLines={1}>
+                    {reviewer.subject} | {reviewer.card_count} {reviewer.card_count === 1 ? 'card' : 'cards'}
+                  </Text>
+                  <Text style={[styles.lastStudied, dark && { color: '#AAB7CC' }]} numberOfLines={1}>{getLastStudied(reviewer.last_studied)}</Text>
+                </View>
+                <View style={styles.rightColumn}>
+                  <View style={[styles.statusPill, isDone ? styles.statusPillDone : styles.statusPillActive]}>
+                    <Text style={[styles.statusText, isDone && styles.statusTextDone]}>{isDone ? 'Done' : 'Active'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={17} color="#B9C7DA" />
+                </View>
+              </Pressable>
+            );
+          })}
           {!loading && !loadError && filteredReviewers.length === 0 && (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyEmoji}>
-                📚
+            <View style={styles.emptyState}>
+              <Ionicons name={search ? 'search-outline' : 'library-outline'} size={34} color="#99A2B0" />
+              <Text style={[styles.emptyTitle, dark && { color: '#F2F6FF' }]}>
+                {search ? 'No reviewers found' : filter === 'Archived' ? 'No archived reviewers' : filter === 'All' ? 'No reviewers yet' : `No ${filter.toLowerCase()} reviewers`}
               </Text>
-
-              <Text style={styles.emptyTitle}>
-                {search.trim() ? 'No reviewers found' : 'No reviewers yet'}
-              </Text>
-
-              <Text style={styles.emptyText}>
-                {search.trim() ? 'Try searching for another subject.' : 'Create a reviewer to get started.'}
+              <Text style={[styles.emptyText, dark && { color: '#AAB7CC' }]}>
+                {search ? 'Try a different name or subject.' : filter === 'Archived' ? 'Archived reviewers will appear here when archiving is available.' : filter === 'All' ? 'Create a reviewer to get started.' : 'Study cards and your progress will appear here.'}
               </Text>
             </View>
           )}
         </ScrollView>
 
         <Pressable
-          style={({ pressed }) => [
-            styles.floatingButton,
-            pressed && styles.floatingPressed,
-          ]}
-          onPress={() =>
-            router.push('/reviewer/create')
-          }
+          style={({ pressed }) => [styles.floatingButton, pressed && styles.floatingPressed]}
+          onPress={() => router.push('/reviewer/create')}
+          accessibilityRole="button"
+          accessibilityLabel="Create reviewer"
+          hitSlop={8}
         >
-          <Ionicons
-            name="add"
-            size={30}
-            color="#FFFFFF"
-          />
+          <Ionicons name="add" size={27} color="#FFFFFF" />
         </Pressable>
       </View>
     </SafeAreaView>
@@ -259,238 +182,40 @@ export default function ReviewersScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#F7F9F7',
-  },
-
-  container: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 600,
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 18,
-  },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-
-  smallHeading: {
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    color: '#58CC02',
-    marginBottom: 3,
-  },
-
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#292929',
-  },
-
-  profileButton: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  searchContainer: {
-    height: 54,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderRadius: 16,
-    paddingHorizontal: 15,
-    marginBottom: 18,
-  },
-
-  searchInput: {
-    flex: 1,
-    marginLeft: 9,
-    fontSize: 15,
-    color: '#292929',
-    outlineStyle: 'none',
-  } as any,
-
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 9,
-    marginBottom: 26,
-  },
-
-  summaryCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderRadius: 17,
-    paddingVertical: 15,
-    alignItems: 'center',
-  },
-
-  summaryNumber: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#292929',
-  },
-
-  summaryLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#888888',
-    marginTop: 4,
-  },
-
-  listHeading: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#292929',
-  },
-
-  resultCount: {
-    fontSize: 12,
-    color: '#999999',
-    fontWeight: '600',
-  },
-
-  scrollContent: {
-    paddingBottom: 110,
-  },
-
-  reviewerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderRadius: 19,
-    padding: 15,
-    marginBottom: 11,
-  },
-
-  cardPressed: {
-    transform: [{ scale: 0.99 }],
-    backgroundColor: '#FAFAFA',
-  },
-
-  iconBox: {
-    width: 55,
-    height: 55,
-    borderRadius: 17,
-    backgroundColor: '#EAF9DF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-
-  reviewerContent: {
-    flex: 1,
-  },
-
-  courseCode: {
-    fontSize: 11,
-    color: '#58CC02',
-    fontWeight: '900',
-  },
-
-  reviewerTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#292929',
-    marginTop: 2,
-  },
-
-  progressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-
-  progressTrack: {
-    flex: 1,
-    height: 7,
-    backgroundColor: '#E7E7E7',
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginRight: 9,
-  },
-
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#58CC02',
-    borderRadius: 10,
-  },
-
-  progressNumber: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#58CC02',
-  },
-
-  dueText: {
-    marginTop: 6,
-    fontSize: 11,
-    color: '#999999',
-  },
-
-  floatingButton: {
-    position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#58CC02',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 5,
-    borderBottomColor: '#46A302',
-  },
-
-  floatingPressed: {
-    transform: [{ scale: 0.96 }],
-    borderBottomWidth: 2,
-  },
-
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-
-  emptyEmoji: {
-    fontSize: 45,
-  },
-
-  emptyTitle: {
-    marginTop: 12,
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#292929',
-  },
-
-  emptyText: {
-    marginTop: 5,
-    fontSize: 13,
-    color: '#888888',
-  },
+  safeArea: { flex: 1, backgroundColor: COLORS.canvas },
+  container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 18, paddingTop: 12 },
+  header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: COLORS.cyan, marginBottom: 3 },
+  title: { fontSize: 27, fontWeight: '900', color: COLORS.navy },
+  profileButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  searchContainer: { height: 48, flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF4FC', borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 13, marginBottom: 11, gap: 9 },
+  searchInput: { flex: 1, height: '100%', fontSize: 14, color: COLORS.text, outlineStyle: 'none' } as any,
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 7, rowGap: 7, marginBottom: 12 },
+  filterChip: { minHeight: 32, paddingHorizontal: 14, borderRadius: 17, borderWidth: 1, borderColor: '#C7D6EA', backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  filterChipSelected: { backgroundColor: COLORS.navy, borderColor: COLORS.navy },
+  filterText: { color: '#4B5E7E', fontSize: 11, fontWeight: '700' },
+  filterTextSelected: { color: '#FFFFFF' },
+  list: { flex: 1 },
+  listContent: { paddingTop: 2, paddingBottom: 96 },
+  reviewerCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 9 },
+  cardPressed: { backgroundColor: '#F1F4F7', transform: [{ scale: 0.99 }] },
+  masteryRing: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, borderColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: COLORS.surface },
+  masteryRingDone: { borderColor: '#B9C7DA' },
+  masteryText: { color: COLORS.navy, fontSize: 9, fontWeight: '900' },
+  reviewerContent: { flex: 1, minWidth: 0 },
+  reviewerName: { color: COLORS.navy, fontSize: 14, fontWeight: '800' },
+  metadata: { color: '#6E7D97', fontSize: 10, marginTop: 4 },
+  lastStudied: { color: '#8490A3', fontSize: 10, marginTop: 3 },
+  rightColumn: { height: 48, justifyContent: 'space-between', alignItems: 'flex-end', marginLeft: 7 },
+  statusPill: { minWidth: 37, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 10, alignItems: 'center' },
+  statusPillActive: { backgroundColor: '#102A68' },
+  statusPillDone: { backgroundColor: '#E8EBEF' },
+  statusText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
+  statusTextDone: { color: '#667085' },
+  message: { color: '#7B8492', fontSize: 12, paddingVertical: 20 },
+  emptyState: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 52 },
+  emptyTitle: { color: '#20345C', fontSize: 15, fontWeight: '800', marginTop: 12 },
+  emptyText: { maxWidth: 270, color: '#8490A3', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
+  floatingButton: { position: 'absolute', right: 14, bottom: 17, width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: COLORS.navy, shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
+  floatingPressed: { transform: [{ scale: 0.95 }] },
 });

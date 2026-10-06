@@ -1,0 +1,16 @@
+export const COLORS = {
+  blue: '#2563EB',
+  blueDark: '#1748BA',
+  navy: '#102A68',
+  cyan: '#00A8E8',
+  gold: '#E2A700',
+  canvas: '#F4F7FF',
+  surface: '#FFFFFF',
+  text: '#15264B',
+  muted: '#71809A',
+  border: '#DCE5F2',
+  blueSoft: '#EAF2FF',
+  cyanSoft: '#E5F8FF',
+  goldSoft: '#FFF5D6',
+  danger: '#D84A52',
+} as const;

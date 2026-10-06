@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,25 +12,37 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { createMaterial } from '../../../database/materials';
+import { createMaterial, deleteMaterial, getMaterialById, updateMaterial } from '../../../database/materials';
+import { useAppTheme } from '../../../utils/ThemeContext';
 
 export default function AddMaterialScreen() {
+  const { dark } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const reviewerId = Array.isArray(id) ? id[0] : id;
+  const materialParam = useLocalSearchParams<{ materialId?: string }>().materialId;
+  const materialId = Array.isArray(materialParam) ? materialParam[0] : materialParam;
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!materialId) return;
+    getMaterialById(materialId).then(material => {
+      if (material) { setTitle(material.title); setContent(material.content ?? ''); }
+    }).catch(error => Alert.alert('Could not load material', String(error)));
+  }, [materialId]);
 
   const saveMaterial = async () => {
     if (!reviewerId || !title.trim() || saving) return;
     setSaving(true);
     try {
-      await createMaterial({
+      const input = {
         reviewer_id: reviewerId,
         title,
         content,
         info: content.trim() ? `${content.trim().length} characters` : null,
-      });
+      };
+      if (materialId) await updateMaterial(materialId, input);
+      else await createMaterial(input);
       router.back();
     } catch (error) {
       Alert.alert('Could not save material', error instanceof Error ? error.message : 'Please try again.');
@@ -39,9 +51,20 @@ export default function AddMaterialScreen() {
     }
   };
 
+  const confirmDelete = () => {
+    if (!materialId) return;
+    Alert.alert('Delete material?', 'This removes the material from this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try { await deleteMaterial(materialId); router.back(); }
+        catch (error) { Alert.alert('Could not delete material', error instanceof Error ? error.message : 'Please try again.'); }
+      } },
+    ]);
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
+      <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
         <Pressable
           style={styles.backButton}
           onPress={() => router.back()}
@@ -49,12 +72,12 @@ export default function AddMaterialScreen() {
           <Ionicons
             name="chevron-back"
             size={24}
-            color="#292929"
+            color={dark ? '#F2F6FF' : '#15264B'}
           />
         </Pressable>
 
-        <Text style={styles.headerTitle}>
-          Add Study Material
+        <Text style={[styles.headerTitle, dark && { color: '#F2F6FF' }]}>
+          {materialId ? 'Edit Study Material' : 'Add Study Material'}
         </Text>
 
         <View style={styles.placeholder} />
@@ -64,28 +87,27 @@ export default function AddMaterialScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroIcon}>
+        <View style={[styles.heroIcon, dark && { backgroundColor: '#172235' }]}>
           <Ionicons
             name="document-text-outline"
             size={32}
-            color="#58CC02"
+            color="#2563EB"
           />
         </View>
 
-        <Text style={styles.title}>
+        <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>
           Add something to study
         </Text>
 
-        <Text style={styles.subtitle}>
-          Add your notes now. Later, TUON can use your
-          study material for quizzes and flashcards.
+        <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>
+            Type or paste notes here. You can edit them later.
         </Text>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
           MATERIAL TITLE
         </Text>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons
             name="create-outline"
             size={20}
@@ -93,7 +115,7 @@ export default function AddMaterialScreen() {
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, dark && { color: '#F2F6FF' }]}
             placeholder="e.g. Introduction to Networking"
             placeholderTextColor="#AAAAAA"
             value={title}
@@ -101,13 +123,13 @@ export default function AddMaterialScreen() {
           />
         </View>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
           STUDY NOTES
         </Text>
 
-        <View style={styles.notesContainer}>
+        <View style={[styles.notesContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <TextInput
-            style={styles.notesInput}
+            style={[styles.notesInput, dark && { color: '#F2F6FF' }]}
             multiline
             textAlignVertical="top"
             placeholder="Type or paste your study notes here..."
@@ -116,28 +138,28 @@ export default function AddMaterialScreen() {
             onChangeText={setContent}
           />
 
-          <Text style={styles.characterCount}>
+          <Text style={[styles.characterCount, dark && { color: '#AAB7CC' }]}>
             {content.length} characters
           </Text>
         </View>
 
-        <Text style={styles.orText}>OR</Text>
+        <Text style={[styles.orText, dark && { color: '#AAB7CC' }]}>OPTIONAL FEATURES</Text>
 
-        <Pressable style={styles.uploadCard}>
+        <Pressable style={[styles.uploadCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => Alert.alert('File import not available yet', 'Use Quick Capture to type notes into the app.')}>
           <View style={styles.uploadIcon}>
             <Ionicons
               name="cloud-upload-outline"
               size={27}
-              color="#1CB0F6"
+              color="#00A8E8"
             />
           </View>
 
           <View style={styles.uploadInfo}>
-            <Text style={styles.uploadTitle}>
+            <Text style={[styles.uploadTitle, dark && { color: '#F2F6FF' }]}>
               Upload a file
             </Text>
 
-            <Text style={styles.uploadDescription}>
+            <Text style={[styles.uploadDescription, dark && { color: '#AAB7CC' }]}>
               PDF and document support will be connected later.
             </Text>
           </View>
@@ -149,22 +171,22 @@ export default function AddMaterialScreen() {
           />
         </Pressable>
 
-        <Pressable style={styles.cameraCard}>
+        <Pressable style={[styles.cameraCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => router.push(`/reviewer/${reviewerId}/quick-capture`)}>
           <View style={styles.cameraIcon}>
             <Ionicons
               name="camera-outline"
               size={27}
-              color="#FF9600"
+              color="#D79A00"
             />
           </View>
 
           <View style={styles.uploadInfo}>
-            <Text style={styles.uploadTitle}>
+            <Text style={[styles.uploadTitle, dark && { color: '#F2F6FF' }]}>
               Scan handwritten notes
             </Text>
 
-            <Text style={styles.uploadDescription}>
-              Use Quick Capture to scan notes with your camera.
+            <Text style={[styles.uploadDescription, dark && { color: '#AAB7CC' }]}>
+              Open Quick Capture to type notes. Camera OCR is not available yet.
             </Text>
           </View>
 
@@ -175,23 +197,24 @@ export default function AddMaterialScreen() {
           />
         </Pressable>
 
-        <View style={styles.tipCard}>
-          <Text style={styles.tipEmoji}>💡</Text>
+        <View style={[styles.tipCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+          <Ionicons name="bulb-outline" size={25} color="#E2A700" />
 
           <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>
+            <Text style={[styles.tipTitle, dark && { color: '#F2F6FF' }]}>
               Study tip
             </Text>
 
-            <Text style={styles.tipText}>
+            <Text style={[styles.tipText, dark && { color: '#AAB7CC' }]}>
               Clear and organized notes make it easier to
               create useful quizzes and flashcards.
             </Text>
           </View>
         </View>
+        {materialId && <Pressable onPress={confirmDelete} style={{ padding: 15, alignItems: 'center' }} accessibilityRole="button"><Text style={{ color: '#D9534F', fontWeight: '800' }}>DELETE MATERIAL</Text></Pressable>}
       </ScrollView>
 
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, dark && { backgroundColor: '#0B1220', borderTopColor: '#2B3A52' }]}>
         <Pressable
           style={({ pressed }) => [
             styles.saveButton,
@@ -207,7 +230,7 @@ export default function AddMaterialScreen() {
           />
 
           <Text style={styles.saveText}>
-            SAVE MATERIAL
+            {materialId ? 'SAVE CHANGES' : 'SAVE MATERIAL'}
           </Text>
         </Pressable>
       </View>
@@ -218,14 +241,14 @@ export default function AddMaterialScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   header: {
     height: 64,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E8E8E8',
+    borderBottomColor: '#DCE5F2',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -235,7 +258,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F4F7FC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -245,7 +268,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 17,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   placeholder: {
@@ -264,7 +287,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 22,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -274,7 +297,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 23,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
     textAlign: 'center',
     marginTop: 14,
   },
@@ -300,7 +323,7 @@ const styles = StyleSheet.create({
     height: 56,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -312,14 +335,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     fontSize: 15,
-    color: '#292929',
+    color: '#15264B',
   },
 
   notesContainer: {
     minHeight: 190,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     padding: 15,
   },
@@ -328,7 +351,7 @@ const styles = StyleSheet.create({
     minHeight: 145,
     fontSize: 15,
     lineHeight: 22,
-    color: '#292929',
+    color: '#15264B',
   },
 
   characterCount: {
@@ -350,7 +373,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     padding: 14,
     marginBottom: 10,
@@ -361,7 +384,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     padding: 14,
   },
@@ -370,7 +393,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: '#E6F4FF',
+    backgroundColor: '#E5F8FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -380,7 +403,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 15,
-    backgroundColor: '#FFF3DF',
+    backgroundColor: '#FFF5D6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -393,7 +416,7 @@ const styles = StyleSheet.create({
   uploadTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   uploadDescription: {
@@ -435,7 +458,7 @@ const styles = StyleSheet.create({
   bottom: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E8E8E8',
+    borderTopColor: '#DCE5F2',
     paddingHorizontal: 22,
     paddingVertical: 14,
   },
@@ -445,10 +468,10 @@ const styles = StyleSheet.create({
     maxWidth: 556,
     alignSelf: 'center',
     height: 57,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderRadius: 17,
     borderBottomWidth: 4,
-    borderBottomColor: '#46A302',
+    borderBottomColor: '#1748BA',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

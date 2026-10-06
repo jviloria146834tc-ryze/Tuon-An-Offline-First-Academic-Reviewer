@@ -1,10 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,8 +12,10 @@ import {
   View,
 } from 'react-native';
 import { getReviewerById, updateReviewer } from '../../../database/reviewers';
+import { useAppTheme } from '../../../utils/ThemeContext';
 
 export default function EditReviewerScreen() {
+  const { dark } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const reviewerId = Array.isArray(id) ? id[0] : id;
@@ -59,8 +61,8 @@ export default function EditReviewerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
+      <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
         <Pressable
           style={styles.backButton}
             onPress={() => router.replace(`/reviewer/${reviewerId}`)}
@@ -68,11 +70,11 @@ export default function EditReviewerScreen() {
           <Ionicons
             name="chevron-back"
             size={24}
-            color="#292929"
+            color={dark ? '#F2F6FF' : '#15264B'}
           />
         </Pressable>
 
-        <Text style={styles.headerTitle}>
+        <Text style={[styles.headerTitle, dark && { color: '#F2F6FF' }]}>
           Edit Reviewer
         </Text>
 
@@ -84,27 +86,27 @@ export default function EditReviewerScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.heroIcon}>
+        <View style={[styles.heroIcon, dark && { backgroundColor: '#172235' }]}>
           <Ionicons
             name="create-outline"
             size={32}
-            color="#58CC02"
+            color="#2563EB"
           />
         </View>
 
-        <Text style={styles.title}>
+        <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>
           Reviewer details
         </Text>
 
-        <Text style={styles.subtitle}>
+        <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>
           Update the information for this reviewer.
         </Text>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
           REVIEWER NAME
         </Text>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons
             name="book-outline"
             size={20}
@@ -112,7 +114,7 @@ export default function EditReviewerScreen() {
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, dark && { color: '#F2F6FF' }]}
             value={name}
             onChangeText={setName}
             placeholder="Reviewer name"
@@ -120,11 +122,11 @@ export default function EditReviewerScreen() {
           />
         </View>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
           SUBJECT
         </Text>
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons
             name="school-outline"
             size={20}
@@ -132,7 +134,7 @@ export default function EditReviewerScreen() {
           />
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, dark && { color: '#F2F6FF' }]}
             value={subject}
             onChangeText={setSubject}
             placeholder="Subject"
@@ -140,12 +142,12 @@ export default function EditReviewerScreen() {
           />
         </View>
 
-        <Text style={styles.label}>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
           DESCRIPTION
         </Text>
 
         <TextInput
-          style={styles.textArea}
+          style={[styles.textArea, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]}
           value={description}
           onChangeText={setDescription}
           placeholder="Add a short description..."
@@ -154,20 +156,20 @@ export default function EditReviewerScreen() {
           textAlignVertical="top"
         />
 
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons
             name="information-circle-outline"
             size={21}
-            color="#1CB0F6"
+            color="#00A8E8"
           />
 
-          <Text style={styles.infoText}>
-            {loading ? 'Loading reviewer details…' : 'Changes are saved locally on this device.'}
+          <Text style={[styles.infoText, dark && { color: '#AAB7CC' }]}>
+            {loading ? 'Loading reviewer details...' : 'Changes are saved locally on this device.'}
           </Text>
         </View>
       </ScrollView>
 
-      <View style={styles.bottom}>
+      <View style={[styles.bottom, dark && { backgroundColor: '#0B1220', borderTopColor: '#2B3A52' }]}>
         <Pressable
           style={[
             styles.saveButton,
@@ -194,7 +196,7 @@ export default function EditReviewerScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   header: {
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E8E8E8',
+    borderBottomColor: '#DCE5F2',
     paddingHorizontal: 20,
   },
 
@@ -211,7 +213,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F4F7FC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -221,7 +223,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 17,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   headerPlaceholder: {
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 22,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 23,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
     marginTop: 14,
   },
 
@@ -277,7 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     paddingHorizontal: 15,
     marginBottom: 22,
@@ -287,25 +289,25 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     fontSize: 14,
-    color: '#292929',
+    color: '#15264B',
   },
 
   textArea: {
     minHeight: 130,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     padding: 15,
     fontSize: 14,
     lineHeight: 21,
-    color: '#292929',
+    color: '#15264B',
     marginBottom: 17,
   },
 
   infoCard: {
     flexDirection: 'row',
-    backgroundColor: '#EAF7FF',
+    backgroundColor: '#E5F8FF',
     borderRadius: 17,
     padding: 15,
   },
@@ -315,13 +317,13 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     fontSize: 11,
     lineHeight: 17,
-    color: '#49758C',
+    color: '#365F82',
   },
 
   bottom: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E8E8E8',
+    borderTopColor: '#DCE5F2',
     paddingHorizontal: 22,
     paddingVertical: 14,
   },
@@ -332,9 +334,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     height: 57,
     borderRadius: 17,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderBottomWidth: 4,
-    borderBottomColor: '#46A302',
+    borderBottomColor: '#1748BA',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

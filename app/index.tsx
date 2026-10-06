@@ -1,10 +1,12 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState, useEffect } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +16,7 @@ import {
 import { router } from 'expo-router';
 import { loginWithEmail, registerWithEmail, getCurrentAuthUser } from '../firebase/auth';
 import { performSync } from '../firebase/sync';
+import { COLORS } from '../utils/theme';
 
 export default function AuthenticationScreen() {
   const [activeTab, setActiveTab] =
@@ -67,23 +70,22 @@ export default function AuthenticationScreen() {
     }
   };
 
-  const handleContinueOffline = () => {
-    router.replace('/(tabs)/dashboard');
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
 
           {/* LOGO */}
           <View style={styles.brandContainer}>
-            <View style={styles.logo}>
-              <Text style={styles.logoLetter}>T</Text>
-            </View>
+            <Image source={require('../assets/tuon-logo.png')} style={styles.logo} resizeMode="cover" accessibilityLabel="TUON logo" />
 
             <Text style={styles.appName}>TUON</Text>
 
@@ -213,21 +215,12 @@ export default function AuthenticationScreen() {
               )}
             </Pressable>
 
-            {/* OFFLINE GUEST ACCESS */}
-            <Pressable
-              onPress={handleContinueOffline}
-              style={styles.offlineButton}
-            >
-              <Text style={styles.offlineButtonText}>
-                Continue in Offline Mode
-              </Text>
-            </Pressable>
           </View>
 
           {/* OFFLINE MESSAGE */}
           <View style={styles.footer}>
             <Text style={styles.footerTitle}>
-              Study anywhere. 🌱
+              Study anywhere, even offline.
             </Text>
 
             <Text style={styles.footerText}>
@@ -236,7 +229,7 @@ export default function AuthenticationScreen() {
             </Text>
           </View>
 
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -245,19 +238,24 @@ export default function AuthenticationScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   container: {
     flex: 1,
   },
 
-  content: {
+  scroll: {
     flex: 1,
+  },
+
+  content: {
+    flexGrow: 1,
     width: '100%',
     maxWidth: 480,
     alignSelf: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 22,
     justifyContent: 'center',
   },
 
@@ -267,25 +265,18 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    width: 82,
-    height: 82,
-    borderRadius: 24,
-    backgroundColor: '#58CC02',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 92,
+    height: 92,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: COLORS.gold,
     marginBottom: 16,
-  },
-
-  logoLetter: {
-    color: '#FFFFFF',
-    fontSize: 42,
-    fontWeight: '900',
   },
 
   appName: {
     fontSize: 34,
     fontWeight: '900',
-    color: '#202124',
+    color: COLORS.navy,
     letterSpacing: 1,
   },
 
@@ -321,7 +312,7 @@ const styles = StyleSheet.create({
   },
 
   activeTabText: {
-    color: '#202124',
+    color: '#15264B',
   },
 
   form: {
@@ -341,22 +332,22 @@ const styles = StyleSheet.create({
     height: 56,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E2E5E2',
+    borderColor: '#DCE5F2',
     borderRadius: 15,
     paddingHorizontal: 16,
     fontSize: 16,
-    color: '#202124',
+    color: '#15264B',
     marginBottom: 20,
   },
 
   primaryButton: {
     height: 56,
-    backgroundColor: '#58CC02',
+    backgroundColor: COLORS.blue,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     borderBottomWidth: 4,
-    borderBottomColor: '#46A302',
+    borderBottomColor: COLORS.blueDark,
     marginTop: 4,
   },
 
@@ -375,23 +366,6 @@ const styles = StyleSheet.create({
 
   buttonDisabled: {
     opacity: 0.7,
-  },
-
-  offlineButton: {
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    borderWidth: 1.5,
-    borderColor: '#D4DDD4',
-    backgroundColor: '#FFFFFF',
-  },
-
-  offlineButtonText: {
-    color: '#555555',
-    fontSize: 14,
-    fontWeight: '700',
   },
 
   errorContainer: {
@@ -418,7 +392,7 @@ const styles = StyleSheet.create({
   footerTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#3C3C3C',
+    color: '#15264B',
   },
 
   footerText: {

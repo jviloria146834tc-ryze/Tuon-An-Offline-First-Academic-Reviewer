@@ -1,10 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Switch,
@@ -52,7 +52,7 @@ export default function CreateReviewerScreen() {
             <Ionicons
               name="chevron-back"
               size={24}
-              color="#292929"
+              color="#15264B"
             />
           </Pressable>
 
@@ -75,7 +75,7 @@ export default function CreateReviewerScreen() {
               <Ionicons
                 name="book-outline"
                 size={32}
-                color="#58CC02"
+                color="#2563EB"
               />
             </View>
 
@@ -159,7 +159,7 @@ export default function CreateReviewerScreen() {
               <Ionicons
                 name="notifications-outline"
                 size={23}
-                color="#FF9600"
+                color="#D79A00"
               />
             </View>
 
@@ -182,7 +182,7 @@ export default function CreateReviewerScreen() {
               }}
               thumbColor={
                 reminderEnabled
-                  ? '#58CC02'
+                  ? '#2563EB'
                   : '#FFFFFF'
               }
             />
@@ -193,7 +193,7 @@ export default function CreateReviewerScreen() {
             <Ionicons
               name="cloud-offline-outline"
               size={22}
-              color="#58CC02"
+              color="#2563EB"
             />
 
             <View style={styles.offlineTextContainer}>
@@ -241,7 +241,7 @@ export default function CreateReviewerScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   keyboardView: {
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#F4F7FC',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 17,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   headerPlaceholder: {
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     width: 68,
     height: 68,
     borderRadius: 22,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 15,
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
     textAlign: 'center',
   },
 
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 16,
     paddingHorizontal: 15,
     marginBottom: 21,
@@ -348,14 +348,14 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     fontSize: 15,
-    color: '#292929',
+    color: '#15264B',
   },
 
   descriptionContainer: {
     minHeight: 125,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 16,
     padding: 15,
     marginBottom: 21,
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     minHeight: 75,
     fontSize: 15,
     lineHeight: 21,
-    color: '#292929',
+    color: '#15264B',
   },
 
   characterCount: {
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 18,
     padding: 15,
     marginTop: 2,
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: '#FFF3DF',
+    backgroundColor: '#FFF5D6',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
   reminderTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   reminderDescription: {
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
 
   offlineCard: {
     flexDirection: 'row',
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     borderRadius: 17,
     padding: 16,
     marginTop: 14,
@@ -429,20 +429,20 @@ const styles = StyleSheet.create({
   offlineTitle: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#3D8F00',
+    color: '#1748BA',
   },
 
   offlineDescription: {
     marginTop: 3,
     fontSize: 11,
     lineHeight: 16,
-    color: '#56813A',
+    color: '#47658B',
   },
 
   bottomContainer: {
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E8E8E8',
+    borderTopColor: '#DCE5F2',
     paddingHorizontal: 22,
     paddingTop: 12,
     paddingBottom: 18,
@@ -454,13 +454,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     height: 57,
     borderRadius: 17,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     borderBottomWidth: 4,
-    borderBottomColor: '#46A302',
+    borderBottomColor: '#1748BA',
   },
 
   buttonPressed: {

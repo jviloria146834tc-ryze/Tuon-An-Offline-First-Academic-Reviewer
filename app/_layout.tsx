@@ -1,8 +1,11 @@
-import { Stack } from 'expo-router';
+import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { initializeDatabase, seedReviewers } from '../database/database';
 import { initializeFirebase } from '../firebase';
+import { loadNotifications } from '../utils/notifications';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ThemeProvider } from '../utils/ThemeContext';
 
 type StartupState = 'loading' | 'ready' | 'error';
 
@@ -24,6 +27,22 @@ export default function RootLayout() {
 
   useEffect(() => {
     let active = true;
+    let notificationSubscription: { remove: () => void } | undefined;
+    void loadNotifications().then(Notifications => {
+      if (!active || !Notifications) return;
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+      notificationSubscription = Notifications.addNotificationResponseReceivedListener(response => {
+        const reviewerId = response.notification.request.content.data?.reviewerId;
+        if (typeof reviewerId === 'string') router.push(`/reviewer/${reviewerId}`);
+      });
+    });
     prepareApp()
       .then(() => { if (active) setState('ready'); })
       .catch(error => {
@@ -31,8 +50,20 @@ export default function RootLayout() {
         setErrorMessage(error instanceof Error ? error.message : 'Unknown database error');
         setState('error');
       });
-    return () => { active = false; };
+    return () => { active = false; notificationSubscription?.remove(); };
   }, [prepareApp]);
+
+  useEffect(() => {
+    if (state !== 'ready') return;
+    let active = true;
+    void loadNotifications().then(Notifications => {
+      if (!active || !Notifications) return;
+      const response = Notifications.getLastNotificationResponse();
+      const reviewerId = response?.notification.request.content.data?.reviewerId;
+      if (typeof reviewerId === 'string') router.push(`/reviewer/${reviewerId}`);
+    });
+    return () => { active = false; };
+  }, [state]);
 
   const retry = () => {
     setState('loading');
@@ -48,7 +79,7 @@ export default function RootLayout() {
   if (state === 'loading') {
     return (
       <View style={styles.startup}>
-        <ActivityIndicator size="large" color="#58CC02" />
+        <ActivityIndicator size="large" color="#2563EB" />
         <Text style={styles.message}>Preparing your offline library…</Text>
       </View>
     );
@@ -66,14 +97,14 @@ export default function RootLayout() {
     );
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return <SafeAreaProvider><ThemeProvider><Stack screenOptions={{ headerShown: false }} /></ThemeProvider></SafeAreaProvider>;
 }
 
 const styles = StyleSheet.create({
-  startup: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F7F9F7' },
+  startup: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F4F7FF' },
   message: { marginTop: 14, color: '#666666', fontSize: 14 },
-  errorTitle: { color: '#292929', fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  errorTitle: { color: '#15264B', fontSize: 18, fontWeight: '800', textAlign: 'center' },
   errorMessage: { marginTop: 8, color: '#777777', textAlign: 'center' },
-  retryButton: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, backgroundColor: '#58CC02' },
+  retryButton: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, backgroundColor: '#2563EB' },
   retryText: { color: '#FFFFFF', fontWeight: '900' },
 });

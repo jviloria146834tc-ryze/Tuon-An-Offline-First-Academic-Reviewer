@@ -1,13 +1,18 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { getQuizzesByMaterial, getQuizQuestions, saveQuizAttempt } from '../../../database/quizzes';
+import { useAppTheme } from '../../../utils/ThemeContext';
 
 type Question = {
   question: string;
@@ -15,70 +20,38 @@ type Question = {
   answer: number;
 };
 
-const MOCK_QUESTIONS: Question[] = [
-  {
-    question: "What is the main purpose of a database?",
-    choices: [
-      "To design websites",
-      "To organize and manage data",
-      "To create animations",
-      "To connect computers",
-    ],
-    answer: 1,
-  },
-  {
-    question: "Which key uniquely identifies a record in a table?",
-    choices: [
-      "Foreign Key",
-      "Secondary Key",
-      "Primary Key",
-      "Normal Key",
-    ],
-    answer: 2,
-  },
-  {
-    question: "What does SQL stand for?",
-    choices: [
-      "Structured Query Language",
-      "System Query Logic",
-      "Standard Question Language",
-      "Structured Quality Logic",
-    ],
-    answer: 0,
-  },
-  {
-    question: "What is a foreign key used for?",
-    choices: [
-      "Deleting records",
-      "Creating relationships between tables",
-      "Changing passwords",
-      "Sorting files",
-    ],
-    answer: 1,
-  },
-  {
-    question: "Why is database normalization used?",
-    choices: [
-      "To increase duplicate data",
-      "To remove all tables",
-      "To reduce unnecessary data duplication",
-      "To make passwords stronger",
-    ],
-    answer: 2,
-  },
-];
-
 export default function QuizScreen() {
+  const { dark } = useAppTheme();
+  const { id, materialId: materialParam, quizId: quizParam } = useLocalSearchParams<{ id: string; materialId?: string; quizId?: string }>();
+  const reviewerId = Array.isArray(id) ? id[0] : id;
+  const materialId = Array.isArray(materialParam) ? materialParam[0] : materialParam;
+  const quizIdParam = Array.isArray(quizParam) ? quizParam[0] : quizParam;
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [quizId, setQuizId] = useState(quizIdParam ?? '');
+  const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [finished, setFinished] = useState(false);
 
-  const question = MOCK_QUESTIONS[currentIndex];
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      let idToLoad = quizIdParam;
+      if (!idToLoad && materialId) idToLoad = (await getQuizzesByMaterial(materialId))[0]?.quiz_id;
+      if (!idToLoad) { if (active) setQuestions([]); return; }
+      const rows = await getQuizQuestions(idToLoad);
+      const parsed = rows.map(row => ({ question: row.question, choices: [row.option_a, row.option_b, row.option_c, row.option_d].filter((item): item is string => !!item), answer: Math.max(0, Number(row.correct_answer) || 0) }));
+      if (active) { setQuizId(idToLoad); setQuestions(parsed); }
+    })().catch(error => Alert.alert('Could not load quiz', String(error))).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [materialId, quizIdParam]);
+
+  const question = questions[currentIndex];
 
   const progress =
-    ((currentIndex + 1) / MOCK_QUESTIONS.length) * 100;
+    questions.length ? ((currentIndex + 1) / questions.length) * 100 : 0;
 
   const selectAnswer = (index: number) => {
     if (answered) return;
@@ -91,12 +64,16 @@ export default function QuizScreen() {
     }
   };
 
-  const nextQuestion = () => {
-    if (currentIndex < MOCK_QUESTIONS.length - 1) {
+  const nextQuestion = async () => {
+    if (currentIndex < questions.length - 1) {
       setCurrentIndex((previous) => previous + 1);
       setSelectedAnswer(null);
       setAnswered(false);
     } else {
+      if (quizId) {
+        try { await saveQuizAttempt(quizId, score, questions.length); }
+        catch (error) { Alert.alert('Could not save quiz result', String(error)); }
+      }
       setFinished(true);
     }
   };
@@ -111,30 +88,30 @@ export default function QuizScreen() {
 
   if (finished) {
     const percentage = Math.round(
-      (score / MOCK_QUESTIONS.length) * 100
+      questions.length ? (score / questions.length) * 100 : 0
     );
 
     return (
-      <View style={styles.resultContainer}>
+      <View style={[styles.resultContainer, dark && { backgroundColor: '#0B1220' }]}>
         <View style={styles.resultIcon}>
           <Ionicons name="trophy" size={45} color="#FFF" />
         </View>
 
-        <Text style={styles.resultTitle}>Quiz Complete!</Text>
+        <Text style={[styles.resultTitle, dark && { color: '#F2F6FF' }]}>Quiz Complete!</Text>
 
-        <Text style={styles.resultSubtitle}>
+        <Text style={[styles.resultSubtitle, dark && { color: '#AAB7CC' }]}>
           Great job completing your review.
         </Text>
 
-        <View style={styles.scoreCard}>
+        <View style={[styles.scoreCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Text style={styles.percentage}>{percentage}%</Text>
 
-          <Text style={styles.scoreLabel}>Quiz Accuracy</Text>
+          <Text style={[styles.scoreLabel, dark && { color: '#AAB7CC' }]}>Quiz Accuracy</Text>
 
           <View style={styles.divider} />
 
-          <Text style={styles.scoreText}>
-            {score} out of {MOCK_QUESTIONS.length} correct
+          <Text style={[styles.scoreText, dark && { color: '#F2F6FF' }]}>
+            {score} out of {questions.length} correct
           </Text>
         </View>
 
@@ -161,14 +138,17 @@ export default function QuizScreen() {
     );
   }
 
+  if (loading) return <SafeAreaView style={[styles.container, dark && { backgroundColor: '#0B1220' }]}><ActivityIndicator color="#2563EB" /><Text style={[styles.questionNumber, dark && { color: '#AAB7CC' }]}>Loading saved quiz...</Text></SafeAreaView>;
+  if (!questions.length || !question) return <SafeAreaView style={[styles.container, dark && { backgroundColor: '#0B1220' }]}><TouchableOpacity style={[styles.closeButton, dark && { backgroundColor: '#172235' }]} onPress={() => router.back()}><Ionicons name="close" size={25} color={dark ? '#F2F6FF' : '#555'} /></TouchableOpacity><Text style={[styles.questionText, dark && { color: '#F2F6FF' }]}>No saved quiz questions yet.</Text><TouchableOpacity style={styles.continueButton} onPress={() => router.replace(`/reviewer/${reviewerId}/quiz-generator`)}><Text style={styles.continueText}>CREATE A QUIZ</Text></TouchableOpacity></SafeAreaView>;
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, dark && { backgroundColor: '#0B1220' }]}>
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.closeButton}
+          style={[styles.closeButton, dark && { backgroundColor: '#172235' }]}
           onPress={() => router.back()}
         >
-          <Ionicons name="close" size={25} color="#555" />
+          <Ionicons name="close" size={25} color={dark ? '#F2F6FF' : '#555'} />
         </TouchableOpacity>
 
         <View style={styles.progressBar}>
@@ -181,7 +161,7 @@ export default function QuizScreen() {
         </View>
 
         <Text style={styles.progressText}>
-          {currentIndex + 1}/{MOCK_QUESTIONS.length}
+          {currentIndex + 1}/{questions.length}
         </Text>
       </View>
 
@@ -189,11 +169,11 @@ export default function QuizScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.questionNumber}>
+        <Text style={[styles.questionNumber, dark && { color: '#7CB0FF' }]}>
           QUESTION {currentIndex + 1}
         </Text>
 
-        <Text style={styles.questionText}>
+        <Text style={[styles.questionText, dark && { color: '#F2F6FF' }]}>
           {question.question}
         </Text>
 
@@ -202,8 +182,8 @@ export default function QuizScreen() {
             const isSelected = selectedAnswer === index;
             const isCorrect = question.answer === index;
 
-            let choiceStyle = styles.choice;
-            let textStyle = styles.choiceText;
+            let choiceStyle = dark ? { ...styles.choice, backgroundColor: '#172235', borderColor: '#2B3A52' } : styles.choice;
+            let textStyle = dark ? { ...styles.choiceText, color: '#F2F6FF' } : styles.choiceText;
 
             if (answered) {
               if (isCorrect) {
@@ -255,7 +235,7 @@ export default function QuizScreen() {
                   <Ionicons
                     name="checkmark-circle"
                     size={24}
-                    color="#58CC02"
+                    color="#2563EB"
                   />
                 )}
 
@@ -291,7 +271,7 @@ export default function QuizScreen() {
               size={25}
               color={
                 selectedAnswer === question.answer
-                  ? "#58CC02"
+                  ? "#2563EB"
                   : "#FF4B4B"
               }
             />
@@ -321,7 +301,7 @@ export default function QuizScreen() {
           onPress={nextQuestion}
         >
           <Text style={styles.continueText}>
-            {currentIndex === MOCK_QUESTIONS.length - 1
+            {currentIndex === questions.length - 1
               ? "See Results"
               : "Continue"}
           </Text>
@@ -366,13 +346,13 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 13,
     borderRadius: 20,
-    backgroundColor: "#E5E5E5",
+    backgroundColor: "#DCE5F2",
     overflow: "hidden",
   },
 
   progressFill: {
     height: "100%",
-    backgroundColor: "#58CC02",
+    backgroundColor: "#2563EB",
     borderRadius: 20,
   },
 
@@ -391,7 +371,7 @@ const styles = StyleSheet.create({
   },
 
   questionNumber: {
-    color: "#58CC02",
+    color: "#2563EB",
     fontSize: 12,
     fontWeight: "900",
     letterSpacing: 1.2,
@@ -423,12 +403,12 @@ const styles = StyleSheet.create({
   },
 
   selectedChoice: {
-    borderColor: "#58CC02",
+    borderColor: "#2563EB",
     backgroundColor: "#F5FFF0",
   },
 
   correctChoice: {
-    borderColor: "#58CC02",
+    borderColor: "#2563EB",
     backgroundColor: "#F2FFE9",
   },
 
@@ -459,7 +439,7 @@ const styles = StyleSheet.create({
   },
 
   correctChoiceText: {
-    color: "#3D8F00",
+    color: "#1748BA",
   },
 
   wrongChoiceText: {
@@ -500,7 +480,7 @@ const styles = StyleSheet.create({
   continueButton: {
     minHeight: 56,
     borderRadius: 17,
-    backgroundColor: "#58CC02",
+    backgroundColor: "#2563EB",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -525,7 +505,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    backgroundColor: "#58CC02",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 22,
@@ -555,7 +535,7 @@ const styles = StyleSheet.create({
   percentage: {
     fontSize: 42,
     fontWeight: "900",
-    color: "#58CC02",
+    color: "#2563EB",
   },
 
   scoreLabel: {
@@ -566,7 +546,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     width: "100%",
-    backgroundColor: "#EEEEEE",
+    backgroundColor: "#E8EEF8",
     marginVertical: 18,
   },
 
@@ -579,7 +559,7 @@ const styles = StyleSheet.create({
     width: 260,
     minHeight: 55,
     borderRadius: 17,
-    backgroundColor: "#58CC02",
+    backgroundColor: "#2563EB",
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",

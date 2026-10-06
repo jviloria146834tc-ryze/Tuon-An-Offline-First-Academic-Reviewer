@@ -1,30 +1,24 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
+  Switch,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
-import { getCurrentAuthUser, logoutUser } from '../../firebase/auth';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useFocusEffect } from 'expo-router';
+import { getActiveStudentId, getCurrentAuthUser, logoutUser } from '../../firebase/auth';
 import { getSyncStatusInfo, performSync, SyncStatusInfo } from '../../firebase/sync';
+import { getDatabase } from '../../database/database';
+import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function SettingsScreen() {
-  const [studyReminders, setStudyReminders] =
-    useState(true);
-
-  const [dueCardAlerts, setDueCardAlerts] =
-    useState(true);
-
-  const [darkMode, setDarkMode] =
-    useState(false);
-
+  const { dark } = useAppTheme();
   const [syncInfo, setSyncInfo] = useState<SyncStatusInfo | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [userEmail, setUserEmail] = useState(() => {
@@ -39,22 +33,21 @@ export default function SettingsScreen() {
   const refreshSyncAndUser = useCallback(async () => {
     const user = getCurrentAuthUser();
     setUserEmail(user?.email || 'Offline / Guest Mode');
-    setUserName(user?.displayName || user?.email?.split('@')[0] || 'Local Student');
+    let name = user?.displayName || user?.email?.split('@')[0] || 'Local Student';
+    try {
+      const id = await getActiveStudentId();
+      const db = await getDatabase();
+      const profile = await db.getFirstAsync<{ display_name: string | null }>(
+        'SELECT display_name FROM students WHERE student_id = ?', id
+      );
+      if (profile?.display_name) name = profile.display_name;
+    } catch { /* Keep the current Firebase or guest name if local profile lookup fails. */ }
+    setUserName(name);
     const info = await getSyncStatusInfo();
     setSyncInfo(info);
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    getSyncStatusInfo().then(info => {
-      if (active) {
-        setSyncInfo(info);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
+  useFocusEffect(useCallback(() => { void refreshSyncAndUser(); }, [refreshSyncAndUser]));
 
   const handleSync = async () => {
     if (isSyncing) return;
@@ -107,50 +100,53 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.smallHeading}>
-              PREFERENCES
-            </Text>
-
-            <Text style={styles.title}>
-              Settings
-            </Text>
-
-            <Text style={styles.subtitle}>
-              Customize your TUON experience.
-            </Text>
+            <View style={styles.headerText}>
+              <Text style={[styles.smallHeading, dark && { color: '#7CB0FF' }]}>
+                PREFERENCES
+              </Text>
+              <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>
+                Settings
+              </Text>
+              <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>
+                Customize your TUON experience.
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.notificationButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+              onPress={() => router.push('/notifications')}
+              accessibilityRole="button"
+              accessibilityLabel="Open notifications"
+            >
+              <Ionicons name="notifications-outline" size={22} color={dark ? '#F2F6FF' : '#15264B'} />
+            </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             PROFILE
           </Text>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.profileCard,
-              pressed && styles.pressed,
-            ]}
-          >
+          <Pressable style={[styles.profileCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="Edit personal profile">
             <View style={styles.avatar}>
               <Ionicons
                 name="person"
                 size={28}
-                color="#58CC02"
+                color="#2563EB"
               />
             </View>
 
             <View style={styles.profileContent}>
-              <Text style={styles.profileName}>
+              <Text style={[styles.profileName, dark && { color: '#F2F6FF' }]}>
                 {userName}
               </Text>
 
-              <Text style={styles.profileEmail}>
+              <Text style={[styles.profileEmail, dark && { color: '#AAB7CC' }]}>
                 {userEmail}
               </Text>
             </View>
@@ -162,85 +158,33 @@ export default function SettingsScreen() {
             />
           </Pressable>
 
-          <Text style={styles.sectionLabel}>
-            STUDY
-          </Text>
-
-          <View style={styles.settingsGroup}>
-            <SettingsRow
-              icon="calendar-outline"
-              iconColor="#58CC02"
-              iconBackground="#EAF9DF"
-              title="Review Schedule"
-              subtitle="Manage your study reminders"
-            />
-
-            <View style={styles.divider} />
-
-            <SettingsRow
-              icon="school-outline"
-              iconColor="#9069CD"
-              iconBackground="#F2EAFE"
-              title="Study Preferences"
-              subtitle="Customize your review experience"
-            />
-          </View>
-
-          <Text style={styles.sectionLabel}>
-            NOTIFICATIONS
-          </Text>
-
-          <View style={styles.settingsGroup}>
-            <ToggleRow
-              icon="notifications-outline"
-              iconColor="#FF9600"
-              iconBackground="#FFF3DF"
-              title="Study Reminders"
-              subtitle="Remind me to study"
-              value={studyReminders}
-              onValueChange={setStudyReminders}
-            />
-
-            <View style={styles.divider} />
-
-            <ToggleRow
-              icon="time-outline"
-              iconColor="#1CB0F6"
-              iconBackground="#E6F4FF"
-              title="Due Card Alerts"
-              subtitle="Notify me about cards due for review"
-              value={dueCardAlerts}
-              onValueChange={setDueCardAlerts}
-            />
-          </View>
-
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             DATA & SYNC
           </Text>
 
-          <View style={styles.settingsGroup}>
+          <View style={[styles.settingsGroup, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <View style={styles.settingRow}>
               <View
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF9DF',
+                    backgroundColor: '#EAF2FF',
                   },
                 ]}
               >
                 <Ionicons
                   name="phone-portrait-outline"
                   size={21}
-                  color="#58CC02"
+                  color="#2563EB"
                 />
               </View>
 
               <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>
+                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
                   Offline Data
                 </Text>
 
-                <Text style={styles.settingSubtitle}>
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   Stored locally in device SQLite
                 </Text>
               </View>
@@ -259,23 +203,23 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: syncInfo?.isConfigured ? '#E6F4FF' : '#F5F5F5',
+                    backgroundColor: syncInfo?.isConfigured ? '#E5F8FF' : '#F4F7FC',
                   },
                 ]}
               >
                 <Ionicons
                   name="cloud-outline"
                   size={21}
-                  color={syncInfo?.isConfigured ? '#1CB0F6' : '#999999'}
+                  color={syncInfo?.isConfigured ? '#00A8E8' : '#999999'}
                 />
               </View>
 
               <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>
+                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
                   Cloud Sync
                 </Text>
 
-                <Text style={styles.settingSubtitle}>
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   {syncInfo?.isConfigured
                     ? syncInfo.pendingCount > 0
                       ? `${syncInfo.pendingCount} local change(s) queued`
@@ -289,12 +233,12 @@ export default function SettingsScreen() {
                   styles.statusBadge,
                   {
                     backgroundColor: !syncInfo?.isConfigured
-                      ? '#EEEEEE'
+                      ? '#E8EEF8'
                       : isSyncing
-                      ? '#E6F4FF'
+                      ? '#E5F8FF'
                       : syncInfo.state === 'error'
                       ? '#FFF0F0'
-                      : '#EAF9DF',
+                      : '#EAF2FF',
                   },
                 ]}
               >
@@ -305,10 +249,10 @@ export default function SettingsScreen() {
                       color: !syncInfo?.isConfigured
                         ? '#888888'
                         : isSyncing
-                        ? '#1CB0F6'
+                        ? '#00A8E8'
                         : syncInfo.state === 'error'
                         ? '#FF4B4B'
-                        : '#58CC02',
+                        : '#2563EB',
                     },
                   ]}
                 >
@@ -330,23 +274,23 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#F2EAFE',
+                    backgroundColor: '#E5F8FF',
                   },
                 ]}
               >
                 <Ionicons
                   name="sync-outline"
                   size={21}
-                  color="#9069CD"
+                  color="#0087C4"
                 />
               </View>
 
               <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>
+                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
                   Last Synced
                 </Text>
 
-                <Text style={styles.settingSubtitle}>
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   {formatLastSync(syncInfo?.lastSyncedAt)}
                 </Text>
               </View>
@@ -367,27 +311,27 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF9DF',
+                    backgroundColor: '#EAF2FF',
                   },
                 ]}
               >
                 {isSyncing ? (
-                  <ActivityIndicator size="small" color="#58CC02" />
+                  <ActivityIndicator size="small" color="#2563EB" />
                 ) : (
                   <Ionicons
                     name="cloud-upload-outline"
                     size={21}
-                    color="#58CC02"
+                    color="#2563EB"
                   />
                 )}
               </View>
 
               <View style={styles.settingContent}>
-                <Text style={[styles.settingTitle, { color: '#58CC02' }]}>
+                <Text style={[styles.settingTitle, { color: '#2563EB' }]}>
                   {isSyncing ? 'Syncing...' : 'Sync Now'}
                 </Text>
 
-                <Text style={styles.settingSubtitle}>
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   Push offline changes and fetch cloud updates
                 </Text>
               </View>
@@ -400,33 +344,26 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             APPEARANCE
           </Text>
 
-          <View style={styles.settingsGroup}>
-            <ToggleRow
-              icon="moon-outline"
-              iconColor="#9069CD"
-              iconBackground="#F2EAFE"
-              title="Dark Mode"
-              subtitle="Use dark appearance"
-              value={darkMode}
-              onValueChange={setDarkMode}
-            />
+          <View style={[styles.settingsGroup, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+            <DarkModeRow />
           </View>
 
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             ABOUT
           </Text>
 
           <View style={styles.settingsGroup}>
             <SettingsRow
               icon="information-circle-outline"
-              iconColor="#1CB0F6"
-              iconBackground="#E6F4FF"
+              iconColor="#00A8E8"
+              iconBackground="#E5F8FF"
               title="About TUON"
-              subtitle="Learn more about the app"
+            subtitle="TUON is an offline-first study reviewer"
+            onPress={() => Alert.alert('About TUON', 'Organize reviewer notes, flashcards, and quizzes. Offline study data is stored on this device.')}
             />
 
             <View style={styles.divider} />
@@ -436,30 +373,30 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF9DF',
+                    backgroundColor: '#EAF2FF',
                   },
                 ]}
               >
                 <Ionicons
                   name="apps-outline"
                   size={21}
-                  color="#58CC02"
+                  color="#2563EB"
                 />
               </View>
 
               <View style={styles.settingContent}>
-                <Text style={styles.settingTitle}>
+                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
                   Version
                 </Text>
 
-                <Text style={styles.settingSubtitle}>
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   TUON 1.0.0
                 </Text>
               </View>
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             ACCOUNT
           </Text>
 
@@ -482,7 +419,7 @@ export default function SettingsScreen() {
           </Pressable>
 
           <Text style={styles.footerText}>
-            TUON • Learn anywhere, even offline.
+            TUON - Learn anywhere, even offline.
           </Text>
         </View>
       </ScrollView>
@@ -496,6 +433,7 @@ type SettingsRowProps = {
   iconBackground: string;
   title: string;
   subtitle: string;
+  onPress?: () => void;
 };
 
 function SettingsRow({
@@ -504,11 +442,15 @@ function SettingsRow({
   iconBackground,
   title,
   subtitle,
+  onPress,
 }: SettingsRowProps) {
+  const { dark } = useAppTheme();
   return (
     <Pressable
+      onPress={onPress}
       style={({ pressed }) => [
         styles.settingRow,
+        dark && { backgroundColor: '#172235' },
         pressed && styles.pressed,
       ]}
     >
@@ -528,11 +470,11 @@ function SettingsRow({
       </View>
 
       <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>
+        <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
           {title}
         </Text>
 
-        <Text style={styles.settingSubtitle}>
+        <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
           {subtitle}
         </Text>
       </View>
@@ -546,58 +488,18 @@ function SettingsRow({
   );
 }
 
-type ToggleRowProps = SettingsRowProps & {
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-};
-
-function ToggleRow({
-  icon,
-  iconColor,
-  iconBackground,
-  title,
-  subtitle,
-  value,
-  onValueChange,
-}: ToggleRowProps) {
+function DarkModeRow() {
+  const { dark, setDark } = useAppTheme();
   return (
     <View style={styles.settingRow}>
-      <View
-        style={[
-          styles.settingIcon,
-          {
-            backgroundColor: iconBackground,
-          },
-        ]}
-      >
-        <Ionicons
-          name={icon}
-          size={21}
-          color={iconColor}
-        />
+      <View style={[styles.settingIcon, { backgroundColor: '#E5F8FF' }]}>
+        <Ionicons name="moon-outline" size={21} color="#0087C4" />
       </View>
-
       <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>
-          {title}
-        </Text>
-
-        <Text style={styles.settingSubtitle}>
-          {subtitle}
-        </Text>
+        <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>Dark Mode</Text>
+        <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>{dark ? 'Dark appearance is on' : 'Use a darker appearance'}</Text>
       </View>
-
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{
-          false: '#D8D8D8',
-          true: '#A5E879',
-        }}
-        thumbColor={
-          value ? '#58CC02' : '#F4F4F4'
-        }
-      />
+      <Switch value={dark} onValueChange={value => { void setDark(value); }} accessibilityLabel="Dark Mode" />
     </View>
   );
 }
@@ -605,7 +507,7 @@ function ToggleRow({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   scrollContent: {
@@ -621,21 +523,41 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
     marginBottom: 23,
+  },
+
+  headerText: {
+    flex: 1,
+  },
+
+  notificationButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE5F2',
+    marginTop: 4,
+    marginLeft: 12,
   },
 
   smallHeading: {
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1.5,
-    color: '#58CC02',
+    color: '#2563EB',
     marginBottom: 3,
   },
 
   title: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   subtitle: {
@@ -658,7 +580,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 20,
     padding: 14,
     marginBottom: 20,
@@ -668,7 +590,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 18,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -681,7 +603,7 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 16,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   profileEmail: {
@@ -693,7 +615,7 @@ const styles = StyleSheet.create({
   settingsGroup: {
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 20,
     paddingHorizontal: 14,
     marginBottom: 20,
@@ -724,7 +646,7 @@ const styles = StyleSheet.create({
   settingTitle: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   settingSubtitle: {
@@ -736,12 +658,12 @@ const styles = StyleSheet.create({
 
   divider: {
     height: 1,
-    backgroundColor: '#EEEEEE',
+    backgroundColor: '#E8EEF8',
     marginLeft: 54,
   },
 
   statusBadge: {
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     borderRadius: 9,
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -750,11 +672,11 @@ const styles = StyleSheet.create({
   statusBadgeText: {
     fontSize: 8,
     fontWeight: '900',
-    color: '#58CC02',
+    color: '#2563EB',
   },
 
   pendingBadge: {
-    backgroundColor: '#FFF3DF',
+    backgroundColor: '#FFF5D6',
     borderRadius: 9,
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -763,7 +685,7 @@ const styles = StyleSheet.create({
   pendingBadgeText: {
     fontSize: 8,
     fontWeight: '900',
-    color: '#FF9600',
+    color: '#D79A00',
   },
 
   pressed: {

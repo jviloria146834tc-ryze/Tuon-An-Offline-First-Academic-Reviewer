@@ -1,9 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
+  Alert,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 
 import {
+  deleteReviewer,
   getReviewerById,
   SQLiteReviewer,
 } from '../../database/reviewers';
@@ -19,8 +21,10 @@ import {
   getMaterialsByReviewer,
   SQLiteMaterial,
 } from '../../database/materials';
+import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function ReviewerDetailScreen() {
+  const { dark } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const reviewerId = Array.isArray(id) ? id[0] : id;
@@ -62,17 +66,22 @@ export default function ReviewerDetailScreen() {
     return () => { active = false; };
   }, [reviewerId]));
 
+  const goBackToOrigin = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/dashboard');
+  };
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
         <View style={styles.loadingContainer}>
           <Ionicons
             name="hourglass-outline"
             size={40}
-            color="#58CC02"
+            color="#2563EB"
           />
 
-          <Text style={styles.loadingTitle}>
+          <Text style={[styles.loadingTitle, dark && { color: '#F2F6FF' }]}>
             Loading reviewer...
           </Text>
         </View>
@@ -82,29 +91,27 @@ export default function ReviewerDetailScreen() {
 
   if (!reviewer) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
         <View style={styles.notFoundContainer}>
           <View style={styles.notFoundIcon}>
             <Ionicons
               name="alert-circle-outline"
               size={40}
-              color="#FF9600"
+              color="#D79A00"
             />
           </View>
 
-          <Text style={styles.notFoundTitle}>
+          <Text style={[styles.notFoundTitle, dark && { color: '#F2F6FF' }]}>
             {loadError ? 'Could not load reviewer' : 'Reviewer not found'}
           </Text>
 
-          <Text style={styles.notFoundText}>
+          <Text style={[styles.notFoundText, dark && { color: '#AAB7CC' }]}>
             {loadError || 'This reviewer may no longer be available.'}
           </Text>
 
           <Pressable
             style={styles.backToReviewersButton}
-            onPress={() =>
-              router.replace('/(tabs)/reviewers')
-            }
+            onPress={goBackToOrigin}
           >
             <Text style={styles.backToReviewersText}>
               GO BACK
@@ -119,66 +126,65 @@ export default function ReviewerDetailScreen() {
 
   const hasMaterials = materialCount > 0;
 
-  const masteryMessage =
-    reviewer.mastery === 0
-      ? 'Start learning! 🌱'
-      : reviewer.mastery < 50
-        ? 'Good start! 🌱'
-        : reviewer.mastery < 80
-          ? 'Keep going! 🌱'
-          : 'Great work! ⭐';
+  const masteryMessage = reviewer.mastery === 0 ? 'Start learning!' : reviewer.mastery < 50 ? 'Good start!' : reviewer.mastery < 80 ? 'Keep going!' : 'Great work!';
+
+  const confirmDelete = () => Alert.alert('Delete reviewer?', `Delete ${reviewer.name} and its local study materials?`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: async () => {
+      try { await deleteReviewer(reviewer.reviewer_id); router.replace('/(tabs)/reviewers'); }
+      catch (error) { Alert.alert('Could not delete reviewer', error instanceof Error ? error.message : 'Please try again.'); }
+    } },
+  ]);
 
   function openMaterial(
     material: SQLiteMaterial
   ) {
     if (material.type === 'Flashcards') {
       router.push(
-        `/reviewer/${reviewerId}/flashcards`
+        `/reviewer/${reviewerId}/flashcards?materialId=${material.material_id}`
       );
       return;
     }
 
     if (material.type === 'Quiz') {
       router.push(
-        `/reviewer/${reviewerId}/quiz`
+        `/reviewer/${reviewerId}/quiz?materialId=${material.material_id}`
       );
       return;
     }
 
     router.push(
-      `/reviewer/${reviewerId}/material`
+      `/reviewer/${reviewerId}/material?materialId=${material.material_id}`
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
 
         {/* HEADER */}
-        <View style={styles.header}>
+        <View style={[styles.header, dark && { backgroundColor: '#0B1220' }]}>
           <Pressable
-            style={styles.backButton}
-            onPress={() =>
-              router.replace('/(tabs)/reviewers')
-            }
+            style={[styles.backButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+            onPress={goBackToOrigin}
           >
             <Ionicons
               name="chevron-back"
               size={24}
-              color="#292929"
+              color={dark ? '#F2F6FF' : '#15264B'}
             />
           </Pressable>
 
           <View style={styles.headerText}>
-            <Text style={styles.course}>
+            <Text style={[styles.course, dark && { color: '#F2F6FF' }]}>
               {reviewer.name}
             </Text>
 
             <Text
-              style={styles.subject}
+              style={[styles.subject, dark && { color: '#AAB7CC' }]}
               numberOfLines={1}
             >
               {reviewer.subject}
@@ -196,8 +202,11 @@ export default function ReviewerDetailScreen() {
             <Ionicons
               name="create-outline"
               size={22}
-              color="#666666"
+              color={dark ? '#CBD5E1' : '#666666'}
             />
+          </Pressable>
+          <Pressable style={styles.editButton} onPress={confirmDelete} accessibilityRole="button" accessibilityLabel="Delete reviewer">
+            <Ionicons name="trash-outline" size={21} color="#D9534F" />
           </Pressable>
         </View>
 
@@ -243,21 +252,21 @@ export default function ReviewerDetailScreen() {
             />
           </Pressable>
         ) : (
-          <View style={styles.emptyHeroCard}>
+          <View style={[styles.emptyHeroCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <View style={styles.emptyHeroIcon}>
               <Ionicons
                 name="leaf-outline"
                 size={25}
-                color="#58CC02"
+                color="#2563EB"
               />
             </View>
 
             <View style={styles.heroText}>
-              <Text style={styles.emptyHeroTitle}>
+              <Text style={[styles.emptyHeroTitle, dark && { color: '#F2F6FF' }]}>
                 Ready to start?
               </Text>
 
-              <Text style={styles.emptyHeroSubtitle}>
+              <Text style={[styles.emptyHeroSubtitle, dark && { color: '#AAB7CC' }]}>
                 Add study material to begin learning.
               </Text>
             </View>
@@ -265,19 +274,19 @@ export default function ReviewerDetailScreen() {
         )}
 
         {/* MASTERY */}
-        <View style={styles.progressCard}>
+        <View style={[styles.progressCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <View>
-            <Text style={styles.progressLabel}>
+            <Text style={[styles.progressLabel, dark && { color: '#AAB7CC' }]}>
               OVERALL MASTERY
             </Text>
 
-            <Text style={styles.progressNumber}>
+            <Text style={[styles.progressNumber, dark && { color: '#7CB0FF' }]}>
               {reviewer.mastery}%
             </Text>
           </View>
 
           <View style={styles.progressRight}>
-            <Text style={styles.progressMessage}>
+            <Text style={[styles.progressMessage, dark && { color: '#F2F6FF' }]}>
               {masteryMessage}
             </Text>
 
@@ -298,7 +307,7 @@ export default function ReviewerDetailScreen() {
         </View>
 
         {/* STUDY TOOLS */}
-        <Text style={styles.sectionLabel}>
+        <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
           STUDY TOOLS
         </Text>
 
@@ -307,8 +316,9 @@ export default function ReviewerDetailScreen() {
             icon="document-text-outline"
             title="Add Material"
             description="Notes and study files"
-            background="#EAF9DF"
-            iconColor="#58CC02"
+            background="#EAF2FF"
+            iconColor="#2563EB"
+            dark={dark}
             onPress={() =>
               router.push(
                 `/reviewer/${reviewerId}/material`
@@ -320,8 +330,9 @@ export default function ReviewerDetailScreen() {
             icon="help-circle-outline"
             title="Generate Quiz"
             description="Test your knowledge"
-            background="#E6F4FF"
-            iconColor="#1CB0F6"
+            background="#E5F8FF"
+            iconColor="#00A8E8"
+            dark={dark}
             onPress={() =>
               router.push(
                 `/reviewer/${reviewerId}/quiz-generator`
@@ -333,8 +344,9 @@ export default function ReviewerDetailScreen() {
             icon="albums-outline"
             title="Flashcards"
             description="Study with SRS"
-            background="#F2EAFE"
-            iconColor="#9069CD"
+            background="#E5F8FF"
+            iconColor="#0087C4"
+            dark={dark}
             onPress={() =>
               router.push(
                 `/reviewer/${reviewerId}/flashcard-generator`
@@ -346,8 +358,9 @@ export default function ReviewerDetailScreen() {
             icon="camera-outline"
             title="Quick Capture"
             description="Scan your notes"
-            background="#FFF3DF"
-            iconColor="#FF9600"
+            background="#FFF5D6"
+            iconColor="#D79A00"
+            dark={dark}
             onPress={() =>
               router.push(
                 `/reviewer/${reviewerId}/quick-capture`
@@ -357,10 +370,11 @@ export default function ReviewerDetailScreen() {
 
           <ToolCard
             icon="notifications-outline"
-            title="Review Schedule"
-            description="Set study reminders"
-            background="#FFF3DF"
-            iconColor="#FF9600"
+            title="Study Reminders"
+            description="Choose reminder days and time"
+            background="#FFF5D6"
+            iconColor="#D79A00"
+            dark={dark}
             onPress={() =>
               router.push(
                 `/reviewer/${reviewerId}/review-schedule`
@@ -371,11 +385,11 @@ export default function ReviewerDetailScreen() {
 
         {/* MATERIALS HEADER */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>
+          <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
             YOUR MATERIALS
           </Text>
 
-          <Text style={styles.materialCount}>
+          <Text style={[styles.materialCount, dark && { color: '#AAB7CC' }]}>
             {materialCount}{' '}
             {materialCount === 1
               ? 'item'
@@ -393,26 +407,27 @@ export default function ReviewerDetailScreen() {
               type={material.type}
               info={material.info ?? ''}
               mastery={material.mastery}
+              dark={dark}
               onPress={() =>
                 openMaterial(material)
               }
             />
           ))
         ) : (
-          <View style={styles.emptyMaterials}>
+          <View style={[styles.emptyMaterials, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <View style={styles.emptyMaterialsIcon}>
               <Ionicons
                 name="documents-outline"
                 size={31}
-                color="#58CC02"
+                color="#2563EB"
               />
             </View>
 
-            <Text style={styles.emptyMaterialsTitle}>
+            <Text style={[styles.emptyMaterialsTitle, dark && { color: '#F2F6FF' }]}>
               No materials yet
             </Text>
 
-            <Text style={styles.emptyMaterialsText}>
+            <Text style={[styles.emptyMaterialsText, dark && { color: '#AAB7CC' }]}>
               Add your first study material to start
               building this reviewer.
             </Text>
@@ -466,6 +481,7 @@ type ToolCardProps = {
   description: string;
   background: string;
   iconColor: string;
+  dark: boolean;
   onPress?: () => void;
 };
 
@@ -475,6 +491,7 @@ function ToolCard({
   description,
   background,
   iconColor,
+  dark,
   onPress,
 }: ToolCardProps) {
   return (
@@ -482,6 +499,7 @@ function ToolCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.toolCard,
+        dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
         pressed && styles.pressed,
       ]}
     >
@@ -498,11 +516,11 @@ function ToolCard({
         />
       </View>
 
-      <Text style={styles.toolTitle}>
+      <Text style={[styles.toolTitle, dark && { color: '#F2F6FF' }]}>
         {title}
       </Text>
 
-      <Text style={styles.toolDescription}>
+      <Text style={[styles.toolDescription, dark && { color: '#AAB7CC' }]}>
         {description}
       </Text>
     </Pressable>
@@ -515,6 +533,7 @@ type MaterialCardProps = {
   type: string;
   info: string;
   mastery?: number;
+  dark: boolean;
   onPress?: () => void;
 };
 
@@ -524,6 +543,7 @@ function MaterialCard({
   type,
   info,
   mastery,
+  dark,
   onPress,
 }: MaterialCardProps) {
   return (
@@ -531,6 +551,7 @@ function MaterialCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.materialCard,
+        dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
         pressed && styles.pressed,
       ]}
     >
@@ -538,21 +559,21 @@ function MaterialCard({
         <Ionicons
           name={icon}
           size={21}
-          color="#58CC02"
+          color="#2563EB"
         />
       </View>
 
       <View style={styles.materialInfo}>
         <Text
-          style={styles.materialTitle}
+          style={[styles.materialTitle, dark && { color: '#F2F6FF' }]}
           numberOfLines={1}
         >
           {title}
         </Text>
 
-        <Text style={styles.materialSubtitle}>
+        <Text style={[styles.materialSubtitle, dark && { color: '#AAB7CC' }]}>
           {type}
-          {info ? ` • ${info}` : ''}
+          {info ? ' | ' + info : ''}
         </Text>
       </View>
 
@@ -563,7 +584,7 @@ function MaterialCard({
               {mastery}%
             </Text>
 
-            <Text style={styles.masteryLabel}>
+            <Text style={[styles.masteryLabel, dark && { color: '#AAB7CC' }]}>
               mastery
             </Text>
           </View>
@@ -582,7 +603,7 @@ function MaterialCard({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F7F9F7',
+    backgroundColor: '#F4F7FF',
   },
 
   content: {
@@ -619,7 +640,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -632,7 +653,7 @@ const styles = StyleSheet.create({
   course: {
     fontSize: 21,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   subject: {
@@ -650,13 +671,13 @@ const styles = StyleSheet.create({
 
   heroCard: {
     minHeight: 105,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderRadius: 22,
     padding: 18,
     flexDirection: 'row',
     alignItems: 'center',
     borderBottomWidth: 5,
-    borderBottomColor: '#46A302',
+    borderBottomColor: '#1748BA',
   },
 
   heroIcon: {
@@ -693,14 +714,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
   },
 
   emptyHeroIcon: {
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 13,
@@ -709,7 +730,7 @@ const styles = StyleSheet.create({
   emptyHeroTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   emptyHeroSubtitle: {
@@ -723,7 +744,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 19,
     padding: 16,
     marginTop: 14,
@@ -740,7 +761,7 @@ const styles = StyleSheet.create({
   progressNumber: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#58CC02',
+    color: '#2563EB',
     marginTop: 2,
   },
 
@@ -757,7 +778,7 @@ const styles = StyleSheet.create({
 
   progressTrack: {
     height: 9,
-    backgroundColor: '#E5E5E5',
+    backgroundColor: '#DCE5F2',
     borderRadius: 10,
     marginTop: 8,
     overflow: 'hidden',
@@ -765,7 +786,7 @@ const styles = StyleSheet.create({
 
   progressFill: {
     height: '100%',
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderRadius: 10,
   },
 
@@ -789,7 +810,7 @@ const styles = StyleSheet.create({
     minHeight: 135,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 19,
     padding: 14,
     marginBottom: 10,
@@ -812,7 +833,7 @@ const styles = StyleSheet.create({
   toolTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
   },
 
   toolDescription: {
@@ -841,7 +862,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 17,
     padding: 12,
     marginBottom: 9,
@@ -851,7 +872,7 @@ const styles = StyleSheet.create({
     width: 45,
     height: 45,
     borderRadius: 14,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -864,7 +885,7 @@ const styles = StyleSheet.create({
   materialTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#292929',
+    color: '#15264B',
   },
 
   materialSubtitle: {
@@ -888,7 +909,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 14,
     fontWeight: '900',
-    color: '#58CC02',
+    color: '#2563EB',
   },
 
   masteryLabel: {
@@ -900,7 +921,7 @@ const styles = StyleSheet.create({
   emptyMaterials: {
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
-    borderColor: '#E5E5E5',
+    borderColor: '#DCE5F2',
     borderRadius: 20,
     paddingHorizontal: 24,
     paddingVertical: 30,
@@ -911,7 +932,7 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 18,
-    backgroundColor: '#EAF9DF',
+    backgroundColor: '#EAF2FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -919,7 +940,7 @@ const styles = StyleSheet.create({
   emptyMaterialsTitle: {
     fontSize: 17,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
     marginTop: 14,
   },
 
@@ -935,9 +956,9 @@ const styles = StyleSheet.create({
   addFirstMaterialButton: {
     height: 48,
     borderRadius: 15,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderBottomWidth: 4,
-    borderBottomColor: '#46A302',
+    borderBottomColor: '#1748BA',
     paddingHorizontal: 20,
     flexDirection: 'row',
     alignItems: 'center',
@@ -963,7 +984,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 22,
-    backgroundColor: '#FFF3DF',
+    backgroundColor: '#FFF5D6',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -971,7 +992,7 @@ const styles = StyleSheet.create({
   notFoundTitle: {
     fontSize: 21,
     fontWeight: '900',
-    color: '#292929',
+    color: '#15264B',
     marginTop: 16,
   },
 
@@ -984,7 +1005,7 @@ const styles = StyleSheet.create({
 
   backToReviewersButton: {
     height: 48,
-    backgroundColor: '#58CC02',
+    backgroundColor: '#2563EB',
     borderRadius: 15,
     paddingHorizontal: 24,
     alignItems: 'center',

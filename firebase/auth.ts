@@ -10,6 +10,7 @@ import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { getAuthInstance, getFirestoreInstance } from './index';
 import { getDatabase } from '../database/database';
 import { setSyncMeta, getSyncMeta } from '../database/sync_queue';
+import { queueMutation } from '../database/sync_queue';
 
 export type AuthResult = {
   success: boolean;
@@ -152,6 +153,35 @@ export async function logoutUser(): Promise<void> {
 export function getCurrentAuthUser(): User | null {
   const auth = getAuthInstance();
   return auth?.currentUser ?? null;
+}
+
+/** Save a display name locally first so profile editing works offline too. */
+export async function updateStudentDisplayName(displayName: string): Promise<void> {
+  const name = displayName.trim();
+  if (!name) throw new Error('Enter your name before saving.');
+  const user = getCurrentAuthUser();
+  const studentId = await getActiveStudentId();
+  const email = user?.email ?? null;
+  await persistLocalStudent(studentId, email, name);
+  await queueMutation('students', studentId, 'UPSERT', {
+    student_id: studentId,
+    email,
+    display_name: name,
+  });
+  if (user) {
+    await updateProfile(user, { displayName: name }).catch(error => {
+      console.warn('Profile name saved locally; Firebase Auth update will need a connection.', error);
+    });
+    const firestore = getFirestoreInstance();
+    if (firestore) {
+      void setDoc(doc(firestore, 'students', user.uid), {
+        student_id: user.uid,
+        email: user.email,
+        display_name: name,
+        updated_at: serverTimestamp(),
+      }, { merge: true }).catch(error => console.warn('Could not update cloud profile yet.', error));
+    }
+  }
 }
 
 /**
