@@ -12,8 +12,12 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as DocumentPicker from 'expo-document-picker';
+import { File as ExpoFile } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { createMaterial, deleteMaterial, getMaterialById, updateMaterial } from '../../../database/materials';
 import { useAppTheme } from '../../../utils/ThemeContext';
+import { extractDocumentNotesWithGemini } from '../../../utils/gemini';
 
 export default function AddMaterialScreen() {
   const { dark } = useAppTheme();
@@ -24,12 +28,121 @@ export default function AddMaterialScreen() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+
   useEffect(() => {
     if (!materialId) return;
     getMaterialById(materialId).then(material => {
       if (material) { setTitle(material.title); setContent(material.content ?? ''); }
     }).catch(error => Alert.alert('Could not load material', String(error)));
   }, [materialId]);
+
+  const handleFileUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          'application/pdf',
+          'text/plain',
+          'text/markdown',
+          'application/json',
+          'text/csv',
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const fileAsset = result.assets[0];
+      const fileName = fileAsset.name || 'Imported Document';
+      const mimeType = fileAsset.mimeType || (fileName.endsWith('.pdf') ? 'application/pdf' : 'text/plain');
+
+      setImporting(true);
+
+      // Auto-populate title if empty
+      if (!title.trim()) {
+        const cleanName = fileName.replace(/\.[^/.]+$/, '');
+        setTitle(cleanName);
+      }
+
+      // Read file content safely across Android Expo Go and native builds
+      const readFileData = async (asBase64: boolean): Promise<string> => {
+        // 1. Try modern File class from expo-file-system
+        try {
+          const modernFile = new ExpoFile(fileAsset.uri);
+          if (asBase64) {
+            return await modernFile.base64();
+          } else {
+            return await modernFile.text();
+          }
+        } catch {
+          // If modern File fails, proceed to legacy & fetch methods
+        }
+
+        // 2. Try fetch blob reader (works inside Android scoped sandbox)
+        try {
+          const response = await fetch(fileAsset.uri);
+          const blob = await response.blob();
+          return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              if (typeof reader.result === 'string') {
+                if (asBase64) {
+                  // Strip the data:mime/type;base64, prefix
+                  const base64Index = reader.result.indexOf(';base64,');
+                  resolve(base64Index !== -1 ? reader.result.slice(base64Index + 8) : reader.result);
+                } else {
+                  resolve(reader.result);
+                }
+              } else {
+                reject(new Error('FileReader returned empty result.'));
+              }
+            };
+            reader.onerror = () => reject(new Error('FileReader error reading file.'));
+            if (asBase64) {
+              reader.readAsDataURL(blob);
+            } else {
+              reader.readAsText(blob);
+            }
+          });
+        } catch {
+          // If blob reader fails, try legacy FileSystem
+        }
+
+        // 3. Fallback to legacy FileSystem with copyAsync to app document directory
+        const dest = `${FileSystem.documentDirectory ?? FileSystem.cacheDirectory}${Date.now()}_${fileName}`;
+        try {
+          await FileSystem.copyAsync({ from: fileAsset.uri, to: dest });
+          const content = await FileSystem.readAsStringAsync(dest, {
+            encoding: asBase64 ? FileSystem.EncodingType.Base64 : FileSystem.EncodingType.UTF8,
+          });
+          void FileSystem.deleteAsync(dest, { idempotent: true });
+          return content;
+        } catch {
+          return await FileSystem.readAsStringAsync(fileAsset.uri, {
+            encoding: asBase64 ? FileSystem.EncodingType.Base64 : FileSystem.EncodingType.UTF8,
+          });
+        }
+      };
+
+      if (mimeType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        Alert.alert('Processing PDF', 'Extracting academic notes using Gemini AI...');
+        const base64Content = await readFileData(true);
+        const extractedNotes = await extractDocumentNotesWithGemini(base64Content, 'application/pdf');
+        setContent(prev => (prev.trim() ? `${prev}\n\n${extractedNotes}` : extractedNotes));
+        Alert.alert('Extraction Complete', `Successfully extracted notes from ${fileName} with Gemini!`);
+      } else {
+        const textContent = await readFileData(false);
+        setContent(prev => (prev.trim() ? `${prev}\n\n${textContent}` : textContent));
+        Alert.alert('File Imported', `Successfully imported text from ${fileName}!`);
+      }
+    } catch (error) {
+      Alert.alert('Import Failed', error instanceof Error ? error.message : 'Could not import the selected file.');
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const saveMaterial = async () => {
     if (!reviewerId || !title.trim() || saving) return;
@@ -145,10 +258,14 @@ export default function AddMaterialScreen() {
 
         <Text style={[styles.orText, dark && { color: '#AAB7CC' }]}>OPTIONAL FEATURES</Text>
 
-        <Pressable style={[styles.uploadCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => Alert.alert('File import not available yet', 'Use Quick Capture to type notes into the app.')}>
+        <Pressable
+          style={[styles.uploadCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }, importing && styles.disabled]}
+          onPress={handleFileUpload}
+          disabled={importing}
+        >
           <View style={styles.uploadIcon}>
             <Ionicons
-              name="cloud-upload-outline"
+              name={importing ? "hourglass-outline" : "cloud-upload-outline"}
               size={27}
               color="#00A8E8"
             />
@@ -156,11 +273,11 @@ export default function AddMaterialScreen() {
 
           <View style={styles.uploadInfo}>
             <Text style={[styles.uploadTitle, dark && { color: '#F2F6FF' }]}>
-              Upload a file
+              {importing ? 'Importing file...' : 'Upload a file'}
             </Text>
 
             <Text style={[styles.uploadDescription, dark && { color: '#AAB7CC' }]}>
-              PDF and document support will be connected later.
+              {importing ? 'Reading & extracting notes with Gemini AI...' : 'Import PDFs, text, markdown, or study documents.'}
             </Text>
           </View>
 
@@ -488,5 +605,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.7,
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

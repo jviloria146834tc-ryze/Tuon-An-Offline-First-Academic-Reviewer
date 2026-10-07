@@ -7,6 +7,7 @@ import { createMaterial, getMaterialsByReviewer, SQLiteMaterial } from '../../..
 import { saveFlashcards, FlashcardInput } from '../../../database/flashcards';
 import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
+import { extractFlashcardsWithGemini } from '../../../utils/gemini';
 
 const CARD_COUNTS = [5, 10, 15, 20, 30, 50] as const;
 type ExtractionMode = 'auto' | 'manual';
@@ -59,17 +60,39 @@ export default function FlashcardGeneratorScreen() {
     setDefinition('');
   };
 
-  const saveDeck = async () => {
-    if (mode === 'auto') {
-      Alert.alert(
-        'Gemini extraction is coming next',
-        selectedItems.length === 0
-          ? 'Add study material to this reviewer first. Your teammate will connect Gemini extraction to this screen.'
-          : 'The Auto-Extract screen is ready, but Gemini extraction has not been connected yet. Switch to Manual Entry to create a real deck now.',
-      );
+  const extractWithAI = async () => {
+    if (selectedItems.length === 0) {
+      Alert.alert('No materials selected', 'Please select at least one study material from the list below to extract flashcards from.');
       return;
     }
-    if (!reviewerId || draftCards.length === 0 || saving) return;
+    const aggregatedContent = selectedItems.map(item => `${item.title}:\n${item.content}`).join('\n\n');
+    setSaving(true);
+    try {
+      const extracted = await extractFlashcardsWithGemini(aggregatedContent, cardCount);
+      if (extracted.length === 0) {
+        Alert.alert('No cards extracted', 'Gemini could not find enough key concepts in the selected materials.');
+        return;
+      }
+      setDraftCards(extracted);
+      Alert.alert('Extraction complete', `Generated ${extracted.length} flashcards! Review them below and tap Save to store the deck.`);
+    } catch (error) {
+      Alert.alert('Gemini extraction failed', error instanceof Error ? error.message : 'Please check your internet connection and API key.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveDeck = async () => {
+    if (mode === 'auto' && draftCards.length === 0) {
+      await extractWithAI();
+      return;
+    }
+
+    if (!reviewerId || draftCards.length === 0 || saving) {
+      Alert.alert('No cards to save', 'Please add or extract flashcards first.');
+      return;
+    }
+
     setSaving(true);
     try {
       const title = deckName.trim() || 'My Flashcards';
@@ -172,17 +195,17 @@ export default function FlashcardGeneratorScreen() {
           )}
         </View>
 
-        {mode === 'auto' ? (
+        {draftCards.length === 0 ? (
           <View style={[styles.emptyPreview, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
-            <Ionicons name="sparkles-outline" size={22} color="#8490A3" />
-            <Text style={[styles.emptyPreviewTitle, dark && { color: '#F2F6FF' }]}>No extracted pairs yet</Text>
-            <Text style={[styles.emptyPreviewText, dark && { color: '#AAB7CC' }]}>Gemini will create a preview from your selected materials after the API is integrated.</Text>
-          </View>
-        ) : draftCards.length === 0 ? (
-          <View style={[styles.emptyPreview, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
-            <Ionicons name="albums-outline" size={22} color="#8490A3" />
-            <Text style={[styles.emptyPreviewTitle, dark && { color: '#F2F6FF' }]}>Your preview will appear here</Text>
-            <Text style={[styles.emptyPreviewText, dark && { color: '#AAB7CC' }]}>Add a term and definition above to start a real flashcard deck.</Text>
+            <Ionicons name={mode === 'auto' ? 'sparkles-outline' : 'albums-outline'} size={22} color="#8490A3" />
+            <Text style={[styles.emptyPreviewTitle, dark && { color: '#F2F6FF' }]}>
+              {mode === 'auto' ? 'No cards extracted yet' : 'Your preview will appear here'}
+            </Text>
+            <Text style={[styles.emptyPreviewText, dark && { color: '#AAB7CC' }]}>
+              {mode === 'auto'
+                ? 'Select your source materials and tap "Generate with Gemini" below to automatically extract cards.'
+                : 'Add a term and definition above to start a real flashcard deck.'}
+            </Text>
           </View>
         ) : visibleCards.map((card, index) => (
           <View key={`${card.question}-${index}`} style={[styles.previewCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
@@ -196,13 +219,6 @@ export default function FlashcardGeneratorScreen() {
             </Pressable>
           </View>
         ))}
-
-        {mode === 'auto' && (
-          <View style={styles.pendingNote}>
-            <Ionicons name="information-circle-outline" size={17} color="#6E7D97" />
-            <Text style={[styles.pendingText, dark && { color: '#AAB7CC' }]}>Auto-Extract is a prepared UI. No generated examples or placeholder cards are shown.</Text>
-          </View>
-        )}
       </ScrollView>
 
       <View style={[styles.footer, dark && { backgroundColor: '#111B2B', borderTopColor: '#2B3A52' }]}>
@@ -211,7 +227,11 @@ export default function FlashcardGeneratorScreen() {
         </Pressable>
         <Pressable style={[styles.saveButton, saving && styles.disabled]} onPress={saveDeck} disabled={saving} accessibilityRole="button">
           <Text style={styles.saveButtonText} numberOfLines={1}>
-            {saving ? 'Saving...' : mode === 'auto' ? `Generate ${cardCount}-Card Deck` : `Save ${draftCards.length}-Card Deck`}
+            {saving
+              ? (mode === 'auto' && draftCards.length === 0 ? 'Extracting with Gemini...' : 'Saving...')
+              : mode === 'auto' && draftCards.length === 0
+                ? `Generate ${cardCount} Cards`
+                : `Save ${draftCards.length}-Card Deck`}
           </Text>
         </Pressable>
       </View>

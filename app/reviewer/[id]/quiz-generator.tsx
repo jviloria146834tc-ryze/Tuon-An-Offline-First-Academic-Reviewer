@@ -3,9 +3,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getMaterialsByReviewer, SQLiteMaterial } from '../../../database/materials';
+import { createMaterial, getMaterialsByReviewer, SQLiteMaterial } from '../../../database/materials';
+import { saveQuiz, QuizQuestionInput } from '../../../database/quizzes';
 import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
+import { generateQuizWithGemini } from '../../../utils/gemini';
 
 const QUESTION_TYPES = ['Multiple Choice', 'True / False', 'Identification'] as const;
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'] as const;
@@ -48,11 +50,74 @@ export default function QuizBuilderScreen() {
       : [...current, materialId]);
   };
 
-  const requestGeneration = () => {
-    Alert.alert(
-      'Quiz generation is not connected yet',
-      `Your setup is ready for ${questionCount} ${questionType.toLowerCase()} questions at ${difficulty.toLowerCase()} difficulty. Gemini generation will be connected by your teammate.`,
-    );
+  const [generating, setGenerating] = useState(false);
+
+  const requestGeneration = async () => {
+    if (!reviewerId) return;
+    if (selectedItems.length === 0) {
+      Alert.alert('No study materials selected', 'Please select at least one study material note to generate quiz questions from.');
+      return;
+    }
+
+    setGenerating(true);
+    try {
+      const aggregatedContent = selectedItems.map(item => `${item.title}:\n${item.content}`).join('\n\n');
+      const generatedQuestions = await generateQuizWithGemini(aggregatedContent, {
+        questionCount,
+        questionType,
+        difficulty,
+      });
+
+      if (generatedQuestions.length === 0) {
+        Alert.alert('Quiz generation failed', 'Gemini could not generate questions from the selected materials.');
+        return;
+      }
+
+      const quizTitle = `${reviewer?.name ?? 'Reviewer'} - ${difficulty} ${questionType} Quiz`;
+      const materialId = await createMaterial({
+        reviewer_id: reviewerId,
+        title: quizTitle,
+        type: 'Quiz',
+        info: `${generatedQuestions.length} Questions`,
+        content: JSON.stringify({
+          difficulty,
+          question_type: questionType,
+          source_material_ids: selectedMaterials,
+        }),
+      });
+
+      const formattedQuestions: QuizQuestionInput[] = generatedQuestions.map(q => ({
+        question: q.question,
+        options: [q.options[0], q.options[1], q.options[2], q.options[3]],
+        correct_answer: String(q.correct_answer_index),
+      }));
+
+      const newQuizId = await saveQuiz({
+        material_id: materialId,
+        title: quizTitle,
+        questions: formattedQuestions,
+      });
+
+      Alert.alert(
+        'Quiz Ready!',
+        `Successfully generated a ${generatedQuestions.length}-question quiz. Let's start!`,
+        [
+          {
+            text: 'Take Quiz Now',
+            onPress: () => {
+              router.replace({
+                pathname: '/reviewer/[id]/quiz',
+                params: { id: reviewerId, materialId, quizId: newQuizId },
+              });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Quiz Generation Error', error instanceof Error ? error.message : 'Please check your internet connection and API key.');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -138,8 +203,15 @@ export default function QuizBuilderScreen() {
       </ScrollView>
 
       <View style={[styles.footer, dark && { backgroundColor: '#111B2B', borderTopColor: '#2B3A52' }]}>
-        <Pressable style={[styles.generateButton, (loading || selectedItems.length === 0) && styles.disabledButton]} disabled={loading || selectedItems.length === 0} onPress={requestGeneration} accessibilityRole="button">
-          <Text style={styles.generateText}>Generate {questionCount}-Item Quiz</Text>
+        <Pressable
+          style={[styles.generateButton, (loading || generating || selectedItems.length === 0) && styles.disabledButton]}
+          disabled={loading || generating || selectedItems.length === 0}
+          onPress={requestGeneration}
+          accessibilityRole="button"
+        >
+          <Text style={styles.generateText}>
+            {generating ? 'Generating with Gemini...' : `Generate ${questionCount}-Item Quiz`}
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>
