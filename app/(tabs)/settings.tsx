@@ -419,7 +419,7 @@ export default function SettingsScreen() {
           </Pressable>
 
           <Text style={styles.footerText}>
-            TUON - Learn anywhere, even offline.
+            TUON - Learn anywhere, even when offline.
           </Text>
         </View>
       </ScrollView>

@@ -8,10 +8,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 import { getQuizzesByMaterial, getQuizQuestions, saveQuizAttempt } from '../../../database/quizzes';
+import { getMaterialById } from '../../../database/materials';
 import { useAppTheme } from '../../../utils/ThemeContext';
 
 type Question = {
@@ -28,6 +30,8 @@ export default function QuizScreen() {
   const quizIdParam = Array.isArray(quizParam) ? quizParam[0] : quizParam;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [quizId, setQuizId] = useState(quizIdParam ?? '');
+  const [quizType, setQuizType] = useState<string>('Multiple Choice');
+  const [typedAnswer, setTypedAnswer] = useState('');
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -39,6 +43,15 @@ export default function QuizScreen() {
     let active = true;
     (async () => {
       let idToLoad = quizIdParam;
+      if (materialId) {
+        const mat = await getMaterialById(materialId);
+        if (mat?.content) {
+          try {
+            const parsed = JSON.parse(mat.content);
+            if (parsed.question_type) setQuizType(parsed.question_type);
+          } catch {}
+        }
+      }
       if (!idToLoad && materialId) idToLoad = (await getQuizzesByMaterial(materialId))[0]?.quiz_id;
       if (!idToLoad) { if (active) setQuestions([]); return; }
       const rows = await getQuizQuestions(idToLoad);
@@ -64,10 +77,24 @@ export default function QuizScreen() {
     }
   };
 
+  const submitTypedAnswer = () => {
+    if (answered || !typedAnswer.trim() || !question) return;
+    const correctChoice = question.choices[question.answer] ?? '';
+    const isMatch = typedAnswer.trim().toLowerCase() === correctChoice.trim().toLowerCase();
+    setAnswered(true);
+    if (isMatch) {
+      setSelectedAnswer(question.answer);
+      setScore(prev => prev + 1);
+    } else {
+      setSelectedAnswer(-1);
+    }
+  };
+
   const nextQuestion = async () => {
     if (currentIndex < questions.length - 1) {
       setCurrentIndex((previous) => previous + 1);
       setSelectedAnswer(null);
+      setTypedAnswer('');
       setAnswered(false);
     } else {
       if (quizId) {
@@ -81,6 +108,7 @@ export default function QuizScreen() {
   const restartQuiz = () => {
     setCurrentIndex(0);
     setSelectedAnswer(null);
+    setTypedAnswer('');
     setAnswered(false);
     setScore(0);
     setFinished(false);
@@ -177,81 +205,113 @@ export default function QuizScreen() {
           {question.question}
         </Text>
 
-        <View style={styles.choices}>
-          {question.choices.map((choice, index) => {
-            const isSelected = selectedAnswer === index;
-            const isCorrect = question.answer === index;
+        {quizType === 'Identification' ? (
+          <View style={styles.identificationBox}>
+            <Text style={[styles.inputLabel, dark && { color: '#AAB7CC' }]}>YOUR ANSWER</Text>
+            <TextInput
+              style={[
+                styles.identificationInput,
+                dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' },
+                answered && (selectedAnswer === question.answer ? styles.correctInput : styles.wrongInput)
+              ]}
+              placeholder="Type your answer here..."
+              placeholderTextColor={dark ? '#7B8A9E' : '#999'}
+              value={typedAnswer}
+              onChangeText={setTypedAnswer}
+              editable={!answered}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {!answered && (
+              <TouchableOpacity
+                style={[styles.submitTypedButton, !typedAnswer.trim() && styles.disabledButton]}
+                disabled={!typedAnswer.trim()}
+                onPress={submitTypedAnswer}
+              >
+                <Text style={styles.submitTypedText}>CHECK ANSWER</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <View style={styles.choices}>
+            {(quizType === 'True / False' || (question.choices.length >= 2 && question.choices[0]?.toLowerCase() === 'true' && question.choices[1]?.toLowerCase() === 'false')
+              ? question.choices.slice(0, 2)
+              : question.choices
+            ).map((choice, index) => {
+              const isSelected = selectedAnswer === index;
+              const isCorrect = question.answer === index;
 
-            let choiceStyle = dark ? { ...styles.choice, backgroundColor: '#172235', borderColor: '#2B3A52' } : styles.choice;
-            let textStyle = dark ? { ...styles.choiceText, color: '#F2F6FF' } : styles.choiceText;
+              let choiceStyle = dark ? { ...styles.choice, backgroundColor: '#172235', borderColor: '#2B3A52' } : styles.choice;
+              let textStyle = dark ? { ...styles.choiceText, color: '#F2F6FF' } : styles.choiceText;
 
-            if (answered) {
-              if (isCorrect) {
-                choiceStyle = {
-                  ...styles.choice,
-                  ...styles.correctChoice,
-                };
+              if (answered) {
+                if (isCorrect) {
+                  choiceStyle = {
+                    ...styles.choice,
+                    ...styles.correctChoice,
+                  };
 
-                textStyle = {
-                  ...styles.choiceText,
-                  ...styles.correctChoiceText,
-                };
+                  textStyle = {
+                    ...styles.choiceText,
+                    ...styles.correctChoiceText,
+                  };
+                } else if (isSelected) {
+                  choiceStyle = {
+                    ...styles.choice,
+                    ...styles.wrongChoice,
+                  };
+
+                  textStyle = {
+                    ...styles.choiceText,
+                    ...styles.wrongChoiceText,
+                  };
+                }
               } else if (isSelected) {
                 choiceStyle = {
                   ...styles.choice,
-                  ...styles.wrongChoice,
-                };
-
-                textStyle = {
-                  ...styles.choiceText,
-                  ...styles.wrongChoiceText,
+                  ...styles.selectedChoice,
                 };
               }
-            } else if (isSelected) {
-              choiceStyle = {
-                ...styles.choice,
-                ...styles.selectedChoice,
-              };
-            }
 
-            return (
-              <TouchableOpacity
-                key={index}
-                activeOpacity={0.8}
-                style={choiceStyle}
-                onPress={() => selectAnswer(index)}
-              >
-                <View style={styles.choiceLetter}>
-                  <Text style={styles.choiceLetterText}>
-                    {String.fromCharCode(65 + index)}
+              return (
+                <TouchableOpacity
+                  key={index}
+                  activeOpacity={0.8}
+                  style={choiceStyle}
+                  onPress={() => selectAnswer(index)}
+                >
+                  <View style={styles.choiceLetter}>
+                    <Text style={styles.choiceLetterText}>
+                      {String.fromCharCode(65 + index)}
+                    </Text>
+                  </View>
+
+                  <Text style={textStyle}>
+                    {choice}
                   </Text>
-                </View>
 
-                <Text style={textStyle}>
-                  {choice}
-                </Text>
-
-                {answered && isCorrect && (
-                  <Ionicons
-                    name="checkmark-circle"
-                    size={24}
-                    color="#2563EB"
-                  />
-                )}
-
-                {answered &&
-                  isSelected &&
-                  !isCorrect && (
+                  {answered && isCorrect && (
                     <Ionicons
-                      name="close-circle"
+                      name="checkmark-circle"
                       size={24}
-                      color="#FF4B4B"
+                      color="#2563EB"
                     />
                   )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+
+                  {answered &&
+                    isSelected &&
+                    !isCorrect && (
+                      <Ionicons
+                        name="close-circle"
+                        size={24}
+                        color="#FF4B4B"
+                      />
+                    )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {answered && (
           <View
@@ -586,5 +646,49 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: "#555",
     fontWeight: "800",
+  },
+
+  identificationBox: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#888',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  identificationInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE5F2',
+    borderRadius: 15,
+    padding: 16,
+    fontSize: 16,
+    color: '#15264B',
+  },
+  correctInput: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  wrongInput: {
+    borderColor: '#FF4B4B',
+    backgroundColor: '#FFF0F0',
+  },
+  submitTypedButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    padding: 15,
+    alignItems: 'center',
+    marginTop: 14,
+  },
+  submitTypedText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.6,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
 });

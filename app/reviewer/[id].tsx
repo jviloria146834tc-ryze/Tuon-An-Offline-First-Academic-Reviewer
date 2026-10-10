@@ -15,6 +15,7 @@ import {
   deleteReviewer,
   getReviewerById,
   SQLiteReviewer,
+  toggleArchiveReviewer,
 } from '../../database/reviewers';
 
 import {
@@ -128,6 +129,32 @@ export default function ReviewerDetailScreen() {
 
   const masteryMessage = reviewer.mastery === 0 ? 'Start learning!' : reviewer.mastery < 50 ? 'Good start!' : reviewer.mastery < 80 ? 'Keep going!' : 'Great work!';
 
+  const isArchived = Boolean(reviewer.is_archived);
+
+  const confirmArchiveToggle = () => {
+    const action = isArchived ? 'Unarchive' : 'Archive';
+    Alert.alert(
+      `${action} reviewer?`,
+      isArchived
+        ? `Move ${reviewer.name} back to your active reviewers?`
+        : `Archive ${reviewer.name}? It will be moved to the Archived tab.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: action,
+          onPress: async () => {
+            try {
+              await toggleArchiveReviewer(reviewer.reviewer_id, !isArchived);
+              setReviewer(prev => prev ? { ...prev, is_archived: isArchived ? 0 : 1 } : null);
+            } catch (error) {
+              Alert.alert('Could not update reviewer', error instanceof Error ? error.message : 'Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const confirmDelete = () => Alert.alert('Delete reviewer?', `Delete ${reviewer.name} and its local study materials?`, [
     { text: 'Cancel', style: 'cancel' },
     { text: 'Delete', style: 'destructive', onPress: async () => {
@@ -205,10 +232,29 @@ export default function ReviewerDetailScreen() {
               color={dark ? '#CBD5E1' : '#666666'}
             />
           </Pressable>
+          <Pressable
+            style={styles.editButton}
+            onPress={confirmArchiveToggle}
+            accessibilityRole="button"
+            accessibilityLabel={isArchived ? 'Unarchive reviewer' : 'Archive reviewer'}
+          >
+            <Ionicons
+              name={isArchived ? 'archive' : 'archive-outline'}
+              size={21}
+              color={isArchived ? '#EA580C' : dark ? '#CBD5E1' : '#666666'}
+            />
+          </Pressable>
           <Pressable style={styles.editButton} onPress={confirmDelete} accessibilityRole="button" accessibilityLabel="Delete reviewer">
             <Ionicons name="trash-outline" size={21} color="#D9534F" />
           </Pressable>
         </View>
+
+        {isArchived && (
+          <View style={[styles.archivedBanner, dark && { backgroundColor: '#2C2214', borderColor: '#5C441E' }]}>
+            <Ionicons name="archive" size={17} color="#EA580C" />
+            <Text style={[styles.archivedBannerText, dark && { color: '#F8C88B' }]}>This reviewer is archived.</Text>
+          </View>
+        )}
 
         {/* CONTINUE LEARNING */}
         {reviewer.due_cards > 0 ? (
@@ -357,7 +403,7 @@ export default function ReviewerDetailScreen() {
           <ToolCard
             icon="camera-outline"
             title="Quick Capture"
-            description="Scan your notes"
+            description="Photos (up to 5) & notes"
             background="#FFF5D6"
             iconColor="#D79A00"
             dark={dark}
@@ -1017,5 +1063,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '900',
+  },
+
+  archivedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FFF4E5',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+  },
+
+  archivedBannerText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#9A3412',
   },
 });

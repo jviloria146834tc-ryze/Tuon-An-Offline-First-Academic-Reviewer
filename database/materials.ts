@@ -9,6 +9,7 @@ export type SQLiteMaterial = {
   type: string;
   info: string | null;
   content: string | null;
+  attachments?: string | null;
   mastery: number;
   created_at: string;
   updated_at: string;
@@ -22,6 +23,7 @@ export type MaterialInput = {
   type?: string;
   info?: string | null;
   content?: string | null;
+  attachments?: string | null;
   mastery?: number;
 };
 
@@ -54,12 +56,13 @@ export async function createMaterial(input: MaterialInput): Promise<string> {
   const type = input.type ?? 'Study Material';
   const info = input.info ?? null;
   const content = input.content ?? null;
+  const attachments = input.attachments ?? null;
   const mastery = input.mastery ?? 0;
 
   await db.runAsync(
-    `INSERT INTO materials (material_id, reviewer_id, title, type, info, content, mastery)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    id, input.reviewer_id, title, type, info, content, mastery
+    `INSERT INTO materials (material_id, reviewer_id, title, type, info, content, attachments, mastery)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, input.reviewer_id, title, type, info, content, attachments, mastery
   );
 
   await queueMutation('materials', id, 'UPSERT', {
@@ -69,6 +72,7 @@ export async function createMaterial(input: MaterialInput): Promise<string> {
     type,
     info,
     content,
+    attachments,
     mastery,
   });
 
@@ -81,10 +85,11 @@ export async function updateMaterial(materialId: string, input: Partial<Omit<Mat
     `UPDATE materials SET
        title = COALESCE(?, title), type = COALESCE(?, type),
        info = COALESCE(?, info), content = COALESCE(?, content),
+       attachments = COALESCE(?, attachments),
        mastery = COALESCE(?, mastery), updated_at = CURRENT_TIMESTAMP
      WHERE material_id = ?`,
     input.title?.trim() ?? null, input.type ?? null, input.info ?? null,
-    input.content ?? null, input.mastery ?? null, materialId
+    input.content ?? null, input.attachments ?? null, input.mastery ?? null, materialId
   );
 
   const updated = await db.getFirstAsync<SQLiteMaterial>(

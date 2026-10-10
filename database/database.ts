@@ -56,6 +56,7 @@ export async function initializeDatabase(): Promise<void> {
           description TEXT,
           mastery REAL NOT NULL DEFAULT 0,
           due_cards INTEGER NOT NULL DEFAULT 0,
+          is_archived INTEGER NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           deleted_at TEXT,
@@ -70,6 +71,7 @@ export async function initializeDatabase(): Promise<void> {
           type TEXT NOT NULL,
           info TEXT,
           content TEXT,
+          attachments TEXT,
           mastery REAL NOT NULL DEFAULT 0,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -156,6 +158,7 @@ export async function initializeDatabase(): Promise<void> {
           reviewer_id TEXT,
           title TEXT,
           content TEXT NOT NULL,
+          images TEXT,
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
           deleted_at TEXT,
@@ -188,6 +191,7 @@ export async function initializeDatabase(): Promise<void> {
 
       // Additive column migrations to support existing databases
       await ensureColumn(db, 'materials', 'content', 'TEXT');
+      await ensureColumn(db, 'reviewers', 'is_archived', 'INTEGER DEFAULT 0');
       await ensureColumn(db, 'reviewers', 'deleted_at', 'TEXT');
       await ensureColumn(db, 'reviewers', 'synced_at', 'TEXT');
       await ensureColumn(db, 'materials', 'deleted_at', 'TEXT');
@@ -206,6 +210,8 @@ export async function initializeDatabase(): Promise<void> {
       await ensureColumn(db, 'quick_captures', 'deleted_at', 'TEXT');
       await ensureColumn(db, 'quick_captures', 'synced_at', 'TEXT');
       await ensureColumn(db, 'quick_captures', 'updated_at', 'TEXT');
+      await ensureColumn(db, 'quick_captures', 'images', 'TEXT');
+      await ensureColumn(db, 'materials', 'attachments', 'TEXT');
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
     })().catch(error => {

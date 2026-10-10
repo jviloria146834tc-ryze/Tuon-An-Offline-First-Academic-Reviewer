@@ -107,3 +107,73 @@ export async function saveSrsProgress(flashcardId: string, progress: SrsProgress
     next_review_date: nextReviewDate,
   });
 }
+
+export type SQLiteSrsProgress = {
+  flashcard_id: string;
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  next_review_date: string | null;
+  last_reviewed_at: string | null;
+  updated_at?: string;
+};
+
+export type SrsRating = 'Again' | 'Hard' | 'Good' | 'Easy';
+
+export async function getSrsProgress(flashcardId: string): Promise<SQLiteSrsProgress | null> {
+  const db = await getDatabase();
+  return db.getFirstAsync<SQLiteSrsProgress>(
+    'SELECT * FROM srs_progress WHERE flashcard_id = ?',
+    flashcardId
+  );
+}
+
+/**
+ * SuperMemo SM-2 algorithm implementation
+ */
+export function calculateNextSrs(
+  current: SQLiteSrsProgress | null | undefined,
+  rating: SrsRating
+): { ease_factor: number; interval_days: number; repetitions: number; next_review_date: string } {
+  const currentEase = current?.ease_factor ?? 2.5;
+  const currentReps = current?.repetitions ?? 0;
+  const currentInterval = current?.interval_days ?? 0;
+
+  // Grade quality q from 0 to 5
+  // Again: 1, Hard: 3, Good: 4, Easy: 5
+  const q = rating === 'Again' ? 1 : rating === 'Hard' ? 3 : rating === 'Good' ? 4 : 5;
+
+  // SM-2 formula: EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+  let newEase = currentEase + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));
+  if (newEase < 1.3) newEase = 1.3;
+  newEase = Math.round(newEase * 100) / 100;
+
+  let newReps = currentReps;
+  let newInterval = 1;
+
+  if (q < 3) {
+    newReps = 0;
+    newInterval = 0;
+  } else {
+    if (currentReps === 0) {
+      newInterval = 1;
+    } else if (currentReps === 1) {
+      newInterval = rating === 'Hard' ? 3 : 6;
+    } else {
+      newInterval = Math.max(1, Math.round(currentInterval * newEase));
+    }
+    newReps += 1;
+  }
+
+  const nextDate = new Date();
+  nextDate.setDate(nextDate.getDate() + newInterval);
+  const nextReviewDate = nextDate.toISOString().slice(0, 10);
+
+  return {
+    ease_factor: newEase,
+    interval_days: newInterval,
+    repetitions: newReps,
+    next_review_date: nextReviewDate,
+  };
+}
+

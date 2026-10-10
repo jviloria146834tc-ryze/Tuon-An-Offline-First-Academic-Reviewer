@@ -62,7 +62,7 @@ export default function NotificationsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Pressable onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back to settings">
           <Ionicons name="chevron-back" size={20} color="#2563EB" />
-          <Text style={styles.backText}>Settings</Text>
+          <Text style={styles.backText}>Back</Text>
         </Pressable>
 
         <View style={styles.headingRow}>

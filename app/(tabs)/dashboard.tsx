@@ -11,14 +11,49 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { getReviewers, SQLiteReviewer } from '../../database/reviewers';
+import { getStudyStreak } from '../../database/activity';
+import { getActiveStudentId, getCurrentAuthUser } from '../../firebase/auth';
+import { getDatabase } from '../../database/database';
 import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function Dashboard() {
   const { dark } = useAppTheme();
   const [reviewers, setReviewers] = useState<SQLiteReviewer[]>([]);
+  const [streak, setStreak] = useState(0);
+  const [userName, setUserName] = useState(() => {
+    const user = getCurrentAuthUser();
+    return user?.displayName || user?.email?.split('@')[0] || 'Student';
+  });
+
   useFocusEffect(useCallback(() => {
     let active = true;
-    getReviewers().then(items => { if (active) setReviewers(items); }).catch(() => {});
+    const user = getCurrentAuthUser();
+    let name = user?.displayName || user?.email?.split('@')[0] || 'Student';
+
+    const getFirstName = (rawName: string) => {
+      const trimmed = rawName.trim();
+      return trimmed ? trimmed.split(/\s+/)[0] : 'Student';
+    };
+
+    Promise.all([
+      getReviewers(),
+      getActiveStudentId().then(id => getStudyStreak(id)),
+      getActiveStudentId().then(async (id) => {
+        const db = await getDatabase();
+        return db.getFirstAsync<{ display_name: string | null }>(
+          'SELECT display_name FROM students WHERE student_id = ?', id
+        );
+      }).catch(() => null),
+    ]).then(([items, streakInfo, profile]) => {
+      if (active) {
+        setReviewers(items);
+        setStreak(streakInfo.currentStreak);
+        if (profile?.display_name) {
+          name = profile.display_name;
+        }
+        setUserName(getFirstName(name));
+      }
+    }).catch(() => {});
     return () => { active = false; };
   }, []));
   const totalDue = reviewers.reduce((sum, reviewer) => sum + reviewer.due_cards, 0);
@@ -37,19 +72,23 @@ export default function Dashboard() {
         {/* HEADER */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, dark && { color: "#AAB7CC" }]}>Good day!</Text>
+            <Text style={[styles.greeting, dark && { color: "#AAB7CC" }]}>Good day, {userName}!</Text>
             <Text style={[styles.heading, dark && { color: '#F2F6FF' }]}>
-              Ready to study?
+              Ready to learn?
             </Text>
           </View>
 
-          <Pressable style={[styles.notificationButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => router.push('/(tabs)/settings')} accessibilityRole="button" accessibilityLabel="Open settings">
+          <Pressable
+            style={[styles.notificationButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+            onPress={() => router.push('/notifications')}
+            accessibilityRole="button"
+            accessibilityLabel="Open notifications"
+          >
             <Ionicons
-              name="settings-outline"
-              size={24}
+              name="notifications-outline"
+              size={22}
               color={dark ? '#F2F6FF' : '#15264B'}
             />
-
           </Pressable>
         </View>
 
@@ -57,10 +96,10 @@ export default function Dashboard() {
         <View style={styles.statsRow}>
 
           <View style={[styles.statCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-            <Ionicons name="library-outline" size={24} color="#2563EB" style={styles.statEmoji} />
-            <Text style={[styles.statNumber, dark && { color: '#F2F6FF' }]}>{reviewers.length}</Text>
+            <Ionicons name="flame" size={24} color="#EA580C" style={styles.statEmoji} />
+            <Text style={[styles.statNumber, dark && { color: '#F2F6FF' }]}>{streak}d</Text>
             <Text style={[styles.statLabel, dark && { color: '#AAB7CC' }]}>
-              Reviewers
+              Streak
             </Text>
           </View>
 

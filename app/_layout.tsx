@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { initializeDatabase, seedReviewers } from '../database/database';
 import { initializeFirebase } from '../firebase';
+import { initNetworkAutoSync } from '../firebase/sync';
 import { loadNotifications } from '../utils/notifications';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../utils/ThemeContext';
@@ -56,13 +57,17 @@ export default function RootLayout() {
   useEffect(() => {
     if (state !== 'ready') return;
     let active = true;
+    const cleanupAutoSync = initNetworkAutoSync();
     void loadNotifications().then(Notifications => {
       if (!active || !Notifications) return;
       const response = Notifications.getLastNotificationResponse();
       const reviewerId = response?.notification.request.content.data?.reviewerId;
       if (typeof reviewerId === 'string') router.push(`/reviewer/${reviewerId}`);
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      cleanupAutoSync();
+    };
   }, [state]);
 
   const retry = () => {

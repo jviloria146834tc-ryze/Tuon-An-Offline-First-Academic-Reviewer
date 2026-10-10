@@ -325,14 +325,16 @@ async function upsertLocalMaterial(data: Record<string, unknown>): Promise<void>
     await db.runAsync('UPDATE materials SET deleted_at = ? WHERE material_id = ?', toIsoString(data.deleted_at), id);
     return;
   }
+  const attachmentsVal = data.attachments ? (typeof data.attachments === 'string' ? data.attachments : JSON.stringify(data.attachments)) : null;
   await db.runAsync(
-    `INSERT INTO materials (material_id, reviewer_id, title, type, info, content, mastery, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `INSERT INTO materials (material_id, reviewer_id, title, type, info, content, attachments, mastery, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(material_id) DO UPDATE SET
        title = excluded.title,
        type = excluded.type,
        info = excluded.info,
        content = excluded.content,
+       attachments = excluded.attachments,
        mastery = excluded.mastery,
        updated_at = excluded.updated_at,
        synced_at = CURRENT_TIMESTAMP`,
@@ -342,6 +344,7 @@ async function upsertLocalMaterial(data: Record<string, unknown>): Promise<void>
     String(data.type || 'Study Material'),
     data.info ? String(data.info) : null,
     data.content ? String(data.content) : null,
+    attachmentsVal,
     Number(data.mastery || 0),
     toIsoString(data.updated_at)
   );
@@ -493,18 +496,21 @@ async function upsertLocalQuickCapture(data: Record<string, unknown>): Promise<v
     await db.runAsync('UPDATE quick_captures SET deleted_at = ? WHERE capture_id = ?', toIsoString(data.deleted_at), id);
     return;
   }
+  const imagesVal = data.images ? (typeof data.images === 'string' ? data.images : JSON.stringify(data.images)) : null;
   await db.runAsync(
-    `INSERT INTO quick_captures (capture_id, reviewer_id, title, content, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `INSERT INTO quick_captures (capture_id, reviewer_id, title, content, images, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(capture_id) DO UPDATE SET
        title = excluded.title,
        content = excluded.content,
+       images = excluded.images,
        updated_at = excluded.updated_at,
        synced_at = CURRENT_TIMESTAMP`,
     id,
     data.reviewer_id ? String(data.reviewer_id) : null,
     data.title ? String(data.title) : null,
     String(data.content || ''),
+    imagesVal,
     toIsoString(data.updated_at)
   );
 }
@@ -524,3 +530,73 @@ function safeJsonParse(jsonString: string): Record<string, unknown> {
     return {};
   }
 }
+
+import * as Network from 'expo-network';
+
+let autoSyncInitialized = false;
+const AUTO_SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Initializes automatic background synchronization when internet connectivity is detected
+ * and on a recurring 10-minute heartbeat.
+ */
+export function initNetworkAutoSync(): () => void {
+  if (autoSyncInitialized) return () => {};
+  autoSyncInitialized = true;
+
+  let isSyncingAutomatically = false;
+
+  const triggerSync = async (isReachable: boolean | undefined) => {
+    if (!isReachable || isSyncingAutomatically) return;
+    try {
+      isSyncingAutomatically = true;
+      await performSync();
+    } catch (err) {
+      console.warn('[AutoSync] Background sync failed:', err);
+    } finally {
+      isSyncingAutomatically = false;
+    }
+  };
+
+  // 1. Initial check on startup
+  Network.getNetworkStateAsync()
+    .then(state => {
+      void triggerSync(state.isConnected && state.isInternetReachable !== false);
+    })
+    .catch(() => {});
+
+  // 2. Reconnection listener (offline -> online transition)
+  let subscription: ReturnType<typeof Network.addNetworkStateListener> | null = null;
+  try {
+    subscription = Network.addNetworkStateListener(event => {
+      const reachable = event.isConnected && event.isInternetReachable !== false;
+      if (reachable) {
+        void triggerSync(true);
+      }
+    });
+  } catch (err) {
+    console.warn('[AutoSync] Network listener not available:', err);
+  }
+
+  // 3. Periodic 10-minute background sync
+  const intervalId = setInterval(async () => {
+    try {
+      const state = await Network.getNetworkStateAsync();
+      const reachable = state.isConnected && state.isInternetReachable !== false;
+      if (reachable) {
+        void triggerSync(true);
+      }
+    } catch {
+      // Ignore background network check errors
+    }
+  }, AUTO_SYNC_INTERVAL_MS);
+
+  return () => {
+    clearInterval(intervalId);
+    if (subscription) {
+      subscription.remove();
+    }
+    autoSyncInitialized = false;
+  };
+}
+

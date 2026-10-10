@@ -13,6 +13,7 @@ export type SQLiteReviewer = {
   due_cards: number;
   card_count: number;
   last_studied: string | null;
+  is_archived?: number;
   created_at?: string;
   updated_at?: string;
   deleted_at?: string | null;
@@ -29,7 +30,7 @@ export async function getReviewers(): Promise<SQLiteReviewer[]> {
   const database = await getDatabase();
   const studentId = await getActiveStudentId();
   return database.getAllAsync<SQLiteReviewer>(
-    `SELECT r.reviewer_id, r.student_id, r.name, r.subject, r.description, r.created_at, r.updated_at, r.deleted_at, r.synced_at,
+    `SELECT r.reviewer_id, r.student_id, r.name, r.subject, r.description, COALESCE(r.is_archived, 0) AS is_archived, r.created_at, r.updated_at, r.deleted_at, r.synced_at,
        (SELECT CASE WHEN COUNT(f.flashcard_id) = 0 THEN 0 ELSE ROUND(100.0 * SUM(CASE WHEN COALESCE(s.repetitions, 0) > 0 THEN 1 ELSE 0 END) / COUNT(f.flashcard_id)) END
         FROM materials m JOIN flashcards f ON f.material_id = m.material_id
         LEFT JOIN srs_progress s ON s.flashcard_id = f.flashcard_id
@@ -52,7 +53,7 @@ export async function getReviewerById(id: string): Promise<SQLiteReviewer | null
   const database = await getDatabase();
   const studentId = await getActiveStudentId();
   return database.getFirstAsync<SQLiteReviewer>(
-    `SELECT r.reviewer_id, r.student_id, r.name, r.subject, r.description, r.created_at, r.updated_at, r.deleted_at, r.synced_at,
+    `SELECT r.reviewer_id, r.student_id, r.name, r.subject, r.description, COALESCE(r.is_archived, 0) AS is_archived, r.created_at, r.updated_at, r.deleted_at, r.synced_at,
        (SELECT CASE WHEN COUNT(f.flashcard_id) = 0 THEN 0 ELSE ROUND(100.0 * SUM(CASE WHEN COALESCE(s.repetitions, 0) > 0 THEN 1 ELSE 0 END) / COUNT(f.flashcard_id)) END
         FROM materials m JOIN flashcards f ON f.material_id = m.material_id
         LEFT JOIN srs_progress s ON s.flashcard_id = f.flashcard_id
@@ -127,3 +128,20 @@ export async function deleteReviewer(id: string): Promise<void> {
   );
   await queueMutation('reviewers', id, 'DELETE', { reviewer_id: id });
 }
+
+export async function toggleArchiveReviewer(id: string, isArchived: boolean): Promise<void> {
+  const database = await getDatabase();
+  const val = isArchived ? 1 : 0;
+  await database.runAsync(
+    'UPDATE reviewers SET is_archived = ?, updated_at = CURRENT_TIMESTAMP WHERE reviewer_id = ?',
+    val, id
+  );
+  const updated = await database.getFirstAsync<SQLiteReviewer>(
+    'SELECT * FROM reviewers WHERE reviewer_id = ?',
+    id
+  );
+  if (updated) {
+    await queueMutation('reviewers', id, 'UPSERT', updated as unknown as Record<string, unknown>);
+  }
+}
+

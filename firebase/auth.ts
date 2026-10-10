@@ -155,6 +155,17 @@ export function getCurrentAuthUser(): User | null {
   return auth?.currentUser ?? null;
 }
 
+/**
+ * Checks whether an active user session exists, either via Firebase Auth
+ * or local SQLite session (for offline startup).
+ */
+export async function checkHasActiveSession(): Promise<boolean> {
+  const authUser = getCurrentAuthUser();
+  if (authUser) return true;
+  const activeStudentId = await getSyncMeta('active_student_id');
+  return Boolean(activeStudentId && activeStudentId !== 'student-1');
+}
+
 /** Save a display name locally first so profile editing works offline too. */
 export async function updateStudentDisplayName(displayName: string): Promise<void> {
   const name = displayName.trim();

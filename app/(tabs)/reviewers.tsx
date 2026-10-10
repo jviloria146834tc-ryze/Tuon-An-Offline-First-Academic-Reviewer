@@ -62,9 +62,15 @@ export default function ReviewersScreen() {
 
   const filteredReviewers = useMemo(() => reviewers.filter(reviewer => {
     const matchesSearch = `${reviewer.name} ${reviewer.subject}`.toLowerCase().includes(search.trim().toLowerCase());
+    const isArchived = Boolean(reviewer.is_archived);
+    if (filter === 'Archived') {
+      return matchesSearch && isArchived;
+    }
+    if (isArchived) {
+      return false;
+    }
     const status = getStatus(reviewer);
-    const matchesFilter = filter === 'All'
-      || (filter === 'Archived' ? false : status === filter);
+    const matchesFilter = filter === 'All' || status === filter;
     return matchesSearch && matchesFilter;
   }), [filter, reviewers, search]);
 

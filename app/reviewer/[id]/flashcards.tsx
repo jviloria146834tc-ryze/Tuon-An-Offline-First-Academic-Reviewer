@@ -3,14 +3,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { getFlashcardsByReviewer, SQLiteFlashcard, saveSrsProgress } from '../../../database/flashcards';
+import { getFlashcards, getFlashcardsByReviewer, getSrsProgress, calculateNextSrs, SQLiteFlashcard, saveSrsProgress, SrsRating } from '../../../database/flashcards';
 import { saveStudyActivity } from '../../../database/activity';
 import { useAppTheme } from '../../../utils/ThemeContext';
 
 export default function FlashcardStudyScreen() {
   const { dark } = useAppTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, materialId: materialParam } = useLocalSearchParams<{ id: string; materialId?: string }>();
   const reviewerId = Array.isArray(id) ? id[0] : id;
+  const materialId = Array.isArray(materialParam) ? materialParam[0] : materialParam;
   const [cards, setCards] = useState<SQLiteFlashcard[]>([]);
   const [index, setIndex] = useState(0);
   const [revealed, setRevealed] = useState(false);
@@ -18,17 +19,27 @@ export default function FlashcardStudyScreen() {
   const [finished, setFinished] = useState(false);
   useEffect(() => {
     let active = true;
-    getFlashcardsByReviewer(reviewerId ?? '').then(items => { if (active) setCards(items); }).catch(error => Alert.alert('Could not load flashcards', String(error))).finally(() => { if (active) setLoading(false); });
+    const fetchCards = async () => {
+      if (materialId) {
+        return getFlashcards(materialId);
+      }
+      return getFlashcardsByReviewer(reviewerId ?? '');
+    };
+    fetchCards().then(items => { if (active) setCards(items); }).catch(error => Alert.alert('Could not load flashcards', String(error))).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [reviewerId]);
+  }, [materialId, reviewerId]);
 
-  const rate = async (rating: 'Again' | 'Hard' | 'Good' | 'Easy') => {
+  const rate = async (rating: SrsRating) => {
     const card = cards[index];
     try {
-      const intervals = { Again: 0, Hard: 1, Good: 3, Easy: 7 };
-      const interval = intervals[rating];
-      const due = new Date(); due.setDate(due.getDate() + interval);
-      await saveSrsProgress(card.flashcard_id, { interval_days: interval, repetitions: rating === 'Again' ? 0 : 1, next_review_date: due.toISOString().slice(0, 10) });
+      const currentProgress = await getSrsProgress(card.flashcard_id);
+      const nextSrs = calculateNextSrs(currentProgress, rating);
+      await saveSrsProgress(card.flashcard_id, {
+        ease_factor: nextSrs.ease_factor,
+        interval_days: nextSrs.interval_days,
+        repetitions: nextSrs.repetitions,
+        next_review_date: nextSrs.next_review_date,
+      });
       if (index < cards.length - 1) { setIndex(index + 1); setRevealed(false); }
       else { await saveStudyActivity({ reviewer_id: reviewerId, activity_type: 'flashcard_review', ended_at: new Date().toISOString() }); setFinished(true); }
     } catch (error) { Alert.alert('Could not save review progress', String(error)); }

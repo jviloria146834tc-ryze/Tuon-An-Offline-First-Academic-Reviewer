@@ -1,8 +1,9 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -14,26 +15,90 @@ import {
 } from 'react-native';
 
 import { router } from 'expo-router';
-import { loginWithEmail, registerWithEmail, getCurrentAuthUser } from '../firebase/auth';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  loginWithEmail,
+  registerWithEmail,
+  getCurrentAuthUser,
+  checkHasActiveSession,
+  subscribeToAuthState,
+} from '../firebase/auth';
 import { performSync } from '../firebase/sync';
 import { COLORS } from '../utils/theme';
 
 export default function AuthenticationScreen() {
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] =
     useState<'login' | 'register'>('login');
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  const togglePasswordVisibility = () => {
+    setShowPassword((prev) => !prev);
+    passwordRef.current?.focus();
+  };
+
+  const toggleConfirmPasswordVisibility = () => {
+    setShowConfirmPassword((prev) => !prev);
+    confirmPasswordRef.current?.focus();
+  };
 
   useEffect(() => {
-    // If user is already authenticated, allow instant navigation
-    const currentUser = getCurrentAuthUser();
-    if (currentUser) {
+    let active = true;
+
+    // 1. Instant check: If Firebase already has currentUser synchronously
+    const immediateUser = getCurrentAuthUser();
+    if (immediateUser) {
       router.replace('/(tabs)/dashboard');
+      return;
     }
+
+    // 2. Offline / Local session check (from SQLite active_student_id)
+    void checkHasActiveSession().then((hasSession) => {
+      if (!active) return;
+      if (hasSession) {
+        router.replace('/(tabs)/dashboard');
+      } else {
+        setCheckingAuth(false);
+      }
+    });
+
+    // 3. Firebase Auth listener (in case credentials restore asynchronously from AsyncStorage)
+    const unsubscribe = subscribeToAuthState((user) => {
+      if (!active) return;
+      if (user) {
+        router.replace('/(tabs)/dashboard');
+      }
+    });
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, () => {
+      setIsKeyboardOpen(true);
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setIsKeyboardOpen(false);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const handleSubmit = async () => {
@@ -41,6 +106,21 @@ export default function AuthenticationScreen() {
     if (!email.trim() || !password.trim()) {
       setErrorMessage('Please fill in both email and password.');
       return;
+    }
+
+    if (activeTab === 'register') {
+      if (password.length < 6) {
+        setErrorMessage('Password must be at least 6 characters long.');
+        return;
+      }
+      if (!confirmPassword.trim()) {
+        setErrorMessage('Please retype your password.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMessage('Passwords do not match. Please retype carefully.');
+        return;
+      }
     }
 
     setLoading(true);
@@ -70,27 +150,40 @@ export default function AuthenticationScreen() {
     }
   };
 
+  if (checkingAuth) {
+    return (
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.blue} />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
+          ref={scrollRef}
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[
+            styles.content,
+            isKeyboardOpen && styles.contentKeyboardOpen,
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
 
           {/* LOGO */}
-          <View style={styles.brandContainer}>
-            <Image source={require('../assets/tuon-logo.png')} style={styles.logo} resizeMode="cover" accessibilityLabel="TUON logo" />
+          <View style={[styles.brandContainer, isKeyboardOpen && styles.brandContainerCompact]}>
+            <Image source={require('../assets/tuon-logo.png')} style={[styles.logo, isKeyboardOpen && styles.logoCompact]} resizeMode="cover" accessibilityLabel="TUON logo" />
 
             <Text style={styles.appName}>TUON</Text>
 
             <Text style={styles.tagline}>
-              Learn smarter, even offline.
+              Learn smarter, even when offline.
             </Text>
           </View>
 
@@ -104,6 +197,7 @@ export default function AuthenticationScreen() {
               onPress={() => {
                 setActiveTab('login');
                 setErrorMessage('');
+                setConfirmPassword('');
               }}
             >
               <Text
@@ -126,6 +220,7 @@ export default function AuthenticationScreen() {
               onPress={() => {
                 setActiveTab('register');
                 setErrorMessage('');
+                setConfirmPassword('');
               }}
             >
               <Text
@@ -161,6 +256,14 @@ export default function AuthenticationScreen() {
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
+                  autoCorrect={false}
+                  keyboardType="default"
+                  autoComplete="name"
+                  textContentType="name"
+                  importantForAutofill="no"
+                  onFocus={() => {
+                    scrollRef.current?.scrollTo({ y: 50, animated: true });
+                  }}
                 />
               </>
             )}
@@ -171,28 +274,101 @@ export default function AuthenticationScreen() {
 
             <TextInput
               style={styles.input}
-              placeholder="you@university.edu"
+              placeholder="you@email.com"
               placeholderTextColor="#A0A0A0"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
               editable={!loading}
+              onFocus={() => {
+                scrollRef.current?.scrollTo({ y: 110, animated: true });
+              }}
             />
 
             <Text style={styles.label}>
               PASSWORD
             </Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor="#A0A0A0"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!loading}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                ref={passwordRef}
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor="#A0A0A0"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                editable={!loading}
+                autoCapitalize="none"
+                autoCorrect={false}
+                textContentType="oneTimeCode"
+                autoComplete="off"
+                cursorColor="#15264B"
+                selectionColor="#15264B"
+                blurOnSubmit={false}
+                onFocus={() => {
+                  scrollRef.current?.scrollTo({ y: activeTab === 'register' ? 220 : 160, animated: true });
+                }}
+              />
+              <Pressable
+                style={styles.eyeButton}
+                onPress={togglePasswordVisibility}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={21}
+                  color="#78859B"
+                />
+              </Pressable>
+            </View>
+
+            {activeTab === 'register' && (
+              <>
+                <Text style={styles.label}>
+                  RETYPE PASSWORD
+                </Text>
+
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    ref={confirmPasswordRef}
+                    style={styles.passwordInput}
+                    placeholder="Retype your password"
+                    placeholderTextColor="#A0A0A0"
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    secureTextEntry={!showConfirmPassword}
+                    editable={!loading}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="oneTimeCode"
+                    autoComplete="off"
+                    cursorColor="#15264B"
+                    selectionColor="#15264B"
+                    blurOnSubmit={false}
+                    onFocus={() => {
+                      scrollRef.current?.scrollTo({ y: 280, animated: true });
+                    }}
+                  />
+                  <Pressable
+                    style={styles.eyeButton}
+                    onPress={toggleConfirmPasswordVisibility}
+                    accessibilityRole="button"
+                    accessibilityLabel={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Ionicons
+                      name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                      size={21}
+                      color="#78859B"
+                    />
+                  </Pressable>
+                </View>
+              </>
+            )}
 
             {/* MAIN BUTTON */}
             <Pressable
@@ -217,16 +393,32 @@ export default function AuthenticationScreen() {
 
           </View>
 
-          {/* OFFLINE MESSAGE */}
+          {/* FOOTER */}
           <View style={styles.footer}>
-            <Text style={styles.footerTitle}>
-              Study anywhere, even offline.
-            </Text>
+            <Pressable
+              onPress={() => {
+                setActiveTab(activeTab === 'login' ? 'register' : 'login');
+                setErrorMessage('');
+                setConfirmPassword('');
+              }}
+              style={styles.switchPrompt}
+              hitSlop={8}
+            >
+              <Text style={styles.switchPromptText}>
+                {activeTab === 'login'
+                  ? "Don't have an account? "
+                  : 'Already have an account? '}
+                <Text style={styles.switchPromptLink}>
+                  {activeTab === 'login' ? 'Register' : 'Log In'}
+                </Text>
+              </Text>
+            </Pressable>
 
-            <Text style={styles.footerText}>
-              Your reviewers stay available even when
-              you&apos;re offline.
-            </Text>
+            <View style={styles.secureNotice}>
+              <Text style={styles.secureNoticeText}>
+                By continuing, you agree to TUON’s Terms & Privacy Policy.
+              </Text>
+            </View>
           </View>
 
         </ScrollView>
@@ -259,9 +451,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  contentKeyboardOpen: {
+    justifyContent: 'flex-start',
+    paddingBottom: 90,
+  },
+
   brandContainer: {
     alignItems: 'center',
     marginBottom: 32,
+  },
+
+  brandContainerCompact: {
+    marginBottom: 16,
   },
 
   logo: {
@@ -271,6 +472,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.gold,
     marginBottom: 16,
+  },
+
+  logoCompact: {
+    width: 58,
+    height: 58,
+    borderRadius: 16,
+    marginBottom: 10,
   },
 
   appName: {
@@ -340,6 +548,31 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  passwordContainer: {
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+
+  passwordInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    color: '#15264B',
+  },
+
+  eyeButton: {
+    padding: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
   primaryButton: {
     height: 56,
     backgroundColor: COLORS.blue,
@@ -385,22 +618,37 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    marginTop: 34,
+    marginTop: 24,
     alignItems: 'center',
+    gap: 12,
   },
 
-  footerTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#15264B',
+  switchPrompt: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
 
-  footerText: {
-    marginTop: 6,
-    fontSize: 13,
-    lineHeight: 19,
-    color: '#888888',
+  switchPromptText: {
+    fontSize: 14,
+    color: '#6B7A99',
+    fontWeight: '500',
+  },
+
+  switchPromptLink: {
+    color: COLORS.blue,
+    fontWeight: '700',
+  },
+
+  secureNotice: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+
+  secureNoticeText: {
+    fontSize: 12,
+    color: '#8A97AC',
+    fontWeight: '500',
     textAlign: 'center',
-    maxWidth: 310,
   },
 });

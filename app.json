@@ -34,7 +34,14 @@
       "expo-status-bar",
       "expo-font",
       "expo-notifications",
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app needs access to your photos to store study captures.",
+          "cameraPermission": "The app needs access to your camera to capture study notes and materials."
+        }
+      ]
     ]
   }
 }
