@@ -83,12 +83,16 @@ export default function ReviewersScreen() {
             <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Reviewers</Text>
           </View>
           <Pressable
-            style={[styles.profileButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+            style={[styles.notificationButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
             onPress={() => router.push('/notifications')}
             accessibilityRole="button"
             accessibilityLabel="Open notifications"
           >
-            <Ionicons name="notifications-outline" size={21} color={dark ? '#7CB0FF' : '#102A68'} />
+            <Ionicons
+              name="notifications-outline"
+              size={22}
+              color={dark ? '#F2F6FF' : '#15264B'}
+            />
           </Pressable>
         </View>
 
@@ -240,7 +244,16 @@ const styles = StyleSheet.create({
   header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: COLORS.cyan, marginBottom: 3 },
   title: { fontSize: 27, fontWeight: '900', color: COLORS.navy },
-  profileButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  notificationButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchContainer: { height: 48, flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF4FC', borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 13, marginBottom: 11, gap: 9 },
   searchInput: { flex: 1, height: '100%', fontSize: 14, color: COLORS.text, outlineStyle: 'none' } as any,
   filterRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 7, rowGap: 7, marginBottom: 12 },

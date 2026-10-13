@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -418,43 +419,38 @@ export default function SettingsScreen() {
           </Text>
 
           <View style={[styles.settingsGroup, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+            <View style={styles.aboutHeaderRow}>
+              <Image
+                source={require('../../assets/tuon-logo.png')}
+                style={[styles.aboutLogo, dark && { borderColor: '#2B3A52' }]}
+                resizeMode="cover"
+                accessibilityLabel="TUON logo"
+              />
+              <View style={styles.aboutHeaderInfo}>
+                <Text style={[styles.aboutAppName, dark && { color: '#F2F6FF' }]}>
+                  TUON
+                </Text>
+                <Text style={[styles.aboutTagline, dark && { color: '#AAB7CC' }]}>
+                  Learn smarter, even when offline.
+                </Text>
+                <View style={[styles.aboutVersionBadge, dark && { backgroundColor: '#102544' }]}>
+                  <Text style={[styles.aboutVersionText, dark && { color: '#7CB0FF' }]}>
+                    v1.0.0 • Offline-First
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.divider, dark && styles.dividerDark]} />
+
             <SettingsRow
               icon="information-circle-outline"
               iconColor="#00A8E8"
               iconBackground={dark ? '#0C283B' : '#E5F8FF'}
               title="About TUON"
-              subtitle="TUON is an offline-first study reviewer"
-              onPress={() => Alert.alert('About TUON', 'Organize reviewer notes, flashcards, and quizzes. Offline study data is stored on this device.')}
+              subtitle="Organize notes, flashcards & quizzes"
+              onPress={() => Alert.alert('About TUON', 'TUON is your offline-first academic study reviewer. Organize study notes, flashcards with spaced repetition, and practice quizzes directly on your device.')}
             />
-
-            <View style={[styles.divider, dark && styles.dividerDark]} />
-
-            <View style={styles.settingRow}>
-              <View
-                style={[
-                  styles.settingIcon,
-                  {
-                    backgroundColor: dark ? '#102544' : '#EAF2FF',
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="apps-outline"
-                  size={21}
-                  color="#2563EB"
-                />
-              </View>
-
-              <View style={styles.settingContent}>
-                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
-                  Version
-                </Text>
-
-                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
-                  TUON 1.0.0
-                </Text>
-              </View>
-            </View>
           </View>
 
           <Text style={[styles.sectionLabel, dark && { color: '#AAB7CC' }]}>
@@ -482,9 +478,17 @@ export default function SettingsScreen() {
             </Text>
           </Pressable>
 
-          <Text style={[styles.footerText, dark && styles.footerTextDark]}>
-            TUON - Learn anywhere, even when offline.
-          </Text>
+          <View style={styles.footerBrand}>
+            <Image
+              source={require('../../assets/tuon-logo.png')}
+              style={styles.footerLogo}
+              resizeMode="cover"
+              accessibilityLabel="TUON logo"
+            />
+            <Text style={[styles.footerText, dark && styles.footerTextDark]}>
+              TUON • Learn smarter, even when offline.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -787,15 +791,76 @@ const styles = StyleSheet.create({
     color: '#FF6B6B',
   },
 
+  footerBrand: {
+    alignItems: 'center',
+    marginTop: 22,
+    marginBottom: 10,
+    gap: 8,
+  },
+
+  footerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    opacity: 0.9,
+  },
+
   footerText: {
     textAlign: 'center',
     color: '#AAAAAA',
-    fontSize: 10,
-    marginTop: 22,
-    marginBottom: 10,
+    fontSize: 11,
+    fontWeight: '600',
   },
 
   footerTextDark: {
     color: '#64748B',
+  },
+
+  aboutHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 14,
+  },
+
+  aboutLogo: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#DCE5F2',
+  },
+
+  aboutHeaderInfo: {
+    flex: 1,
+  },
+
+  aboutAppName: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15264B',
+    letterSpacing: 0.5,
+  },
+
+  aboutTagline: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+
+  aboutVersionBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EAF2FF',
+    borderRadius: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+
+  aboutVersionText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#2563EB',
   },
 });
