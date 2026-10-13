@@ -25,8 +25,10 @@ import {
 } from '../firebase/auth';
 import { performSync } from '../firebase/sync';
 import { COLORS } from '../utils/theme';
+import { useAppTheme } from '../utils/ThemeContext';
 
 export default function AuthenticationScreen() {
+  const { dark } = useAppTheme();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [activeTab, setActiveTab] =
     useState<'login' | 'register'>('login');
@@ -152,14 +154,14 @@ export default function AuthenticationScreen() {
 
   if (checkingAuth) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+      <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.blue} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -180,19 +182,19 @@ export default function AuthenticationScreen() {
           <View style={[styles.brandContainer, isKeyboardOpen && styles.brandContainerCompact]}>
             <Image source={require('../assets/tuon-logo.png')} style={[styles.logo, isKeyboardOpen && styles.logoCompact]} resizeMode="cover" accessibilityLabel="TUON logo" />
 
-            <Text style={styles.appName}>TUON</Text>
+            <Text style={[styles.appName, dark && { color: '#F2F6FF' }]}>TUON</Text>
 
-            <Text style={styles.tagline}>
+            <Text style={[styles.tagline, dark && { color: '#AAB7CC' }]}>
               Learn smarter, even when offline.
             </Text>
           </View>
 
           {/* LOGIN / REGISTER */}
-          <View style={styles.tabContainer}>
+          <View style={[styles.tabContainer, dark && { backgroundColor: '#172235' }]}>
             <Pressable
               style={[
                 styles.tab,
-                activeTab === 'login' && styles.activeTab,
+                activeTab === 'login' && [styles.activeTab, dark && { backgroundColor: '#202E44' }],
               ]}
               onPress={() => {
                 setActiveTab('login');
@@ -203,8 +205,8 @@ export default function AuthenticationScreen() {
               <Text
                 style={[
                   styles.tabText,
-                  activeTab === 'login' &&
-                    styles.activeTabText,
+                  dark && { color: '#8A97AC' },
+                  activeTab === 'login' && [styles.activeTabText, dark && { color: '#F2F6FF' }],
                 ]}
               >
                 Log In
@@ -214,8 +216,7 @@ export default function AuthenticationScreen() {
             <Pressable
               style={[
                 styles.tab,
-                activeTab === 'register' &&
-                  styles.activeTab,
+                activeTab === 'register' && [styles.activeTab, dark && { backgroundColor: '#202E44' }],
               ]}
               onPress={() => {
                 setActiveTab('register');
@@ -226,8 +227,8 @@ export default function AuthenticationScreen() {
               <Text
                 style={[
                   styles.tabText,
-                  activeTab === 'register' &&
-                    styles.activeTabText,
+                  dark && { color: '#8A97AC' },
+                  activeTab === 'register' && [styles.activeTabText, dark && { color: '#F2F6FF' }],
                 ]}
               >
                 Register
@@ -236,8 +237,8 @@ export default function AuthenticationScreen() {
           </View>
 
           {errorMessage ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            <View style={[styles.errorContainer, dark && { backgroundColor: '#261214', borderColor: '#4C1D24' }]}>
+              <Text style={[styles.errorBannerText, dark && { color: '#FF6B6B' }]}>{errorMessage}</Text>
             </View>
           ) : null}
 
@@ -245,14 +246,14 @@ export default function AuthenticationScreen() {
           <View style={styles.form}>
             {activeTab === 'register' && (
               <>
-                <Text style={styles.label}>
+                <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
                   FULL NAME
                 </Text>
 
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]}
                   placeholder="Juan dela Cruz"
-                  placeholderTextColor="#A0A0A0"
+                  placeholderTextColor={dark ? '#64748B' : '#A0A0A0'}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -268,14 +269,14 @@ export default function AuthenticationScreen() {
               </>
             )}
 
-            <Text style={styles.label}>
+            <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
               EMAIL ADDRESS
             </Text>
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]}
               placeholder="you@email.com"
-              placeholderTextColor="#A0A0A0"
+              placeholderTextColor={dark ? '#64748B' : '#A0A0A0'}
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -286,16 +287,16 @@ export default function AuthenticationScreen() {
               }}
             />
 
-            <Text style={styles.label}>
+            <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
               PASSWORD
             </Text>
 
-            <View style={styles.passwordContainer}>
+            <View style={[styles.passwordContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
               <TextInput
                 ref={passwordRef}
-                style={styles.passwordInput}
+                style={[styles.passwordInput, dark && { color: '#F2F6FF' }]}
                 placeholder="Enter your password"
-                placeholderTextColor="#A0A0A0"
+                placeholderTextColor={dark ? '#64748B' : '#A0A0A0'}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -304,8 +305,8 @@ export default function AuthenticationScreen() {
                 autoCorrect={false}
                 textContentType="oneTimeCode"
                 autoComplete="off"
-                cursorColor="#15264B"
-                selectionColor="#15264B"
+                cursorColor={dark ? '#7CB0FF' : '#15264B'}
+                selectionColor={dark ? '#7CB0FF' : '#15264B'}
                 blurOnSubmit={false}
                 onFocus={() => {
                   scrollRef.current?.scrollTo({ y: activeTab === 'register' ? 220 : 160, animated: true });
@@ -321,23 +322,23 @@ export default function AuthenticationScreen() {
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                   size={21}
-                  color="#78859B"
+                  color={dark ? '#8A97AC' : '#78859B'}
                 />
               </Pressable>
             </View>
 
             {activeTab === 'register' && (
               <>
-                <Text style={styles.label}>
+                <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
                   RETYPE PASSWORD
                 </Text>
 
-                <View style={styles.passwordContainer}>
+                <View style={[styles.passwordContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
                   <TextInput
                     ref={confirmPasswordRef}
-                    style={styles.passwordInput}
+                    style={[styles.passwordInput, dark && { color: '#F2F6FF' }]}
                     placeholder="Retype your password"
-                    placeholderTextColor="#A0A0A0"
+                    placeholderTextColor={dark ? '#64748B' : '#A0A0A0'}
                     value={confirmPassword}
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showConfirmPassword}
@@ -346,8 +347,8 @@ export default function AuthenticationScreen() {
                     autoCorrect={false}
                     textContentType="oneTimeCode"
                     autoComplete="off"
-                    cursorColor="#15264B"
-                    selectionColor="#15264B"
+                    cursorColor={dark ? '#7CB0FF' : '#15264B'}
+                    selectionColor={dark ? '#7CB0FF' : '#15264B'}
                     blurOnSubmit={false}
                     onFocus={() => {
                       scrollRef.current?.scrollTo({ y: 280, animated: true });
@@ -363,7 +364,7 @@ export default function AuthenticationScreen() {
                     <Ionicons
                       name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
                       size={21}
-                      color="#78859B"
+                      color={dark ? '#8A97AC' : '#78859B'}
                     />
                   </Pressable>
                 </View>
@@ -404,18 +405,18 @@ export default function AuthenticationScreen() {
               style={styles.switchPrompt}
               hitSlop={8}
             >
-              <Text style={styles.switchPromptText}>
+              <Text style={[styles.switchPromptText, dark && { color: '#AAB7CC' }]}>
                 {activeTab === 'login'
                   ? "Don't have an account? "
                   : 'Already have an account? '}
-                <Text style={styles.switchPromptLink}>
+                <Text style={[styles.switchPromptLink, dark && { color: '#7CB0FF' }]}>
                   {activeTab === 'login' ? 'Register' : 'Log In'}
                 </Text>
               </Text>
             </Pressable>
 
             <View style={styles.secureNotice}>
-              <Text style={styles.secureNoticeText}>
+              <Text style={[styles.secureNoticeText, dark && { color: '#64748B' }]}>
                 By continuing, you agree to TUON’s Terms & Privacy Policy.
               </Text>
             </View>

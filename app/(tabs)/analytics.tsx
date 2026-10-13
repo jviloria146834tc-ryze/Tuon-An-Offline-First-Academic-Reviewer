@@ -52,18 +52,18 @@ export default function AnalyticsScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={[styles.eyebrow, dark && { color: '#7CB0FF' }]}>YOUR PROGRESS</Text><Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Analytics</Text>
       <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>Progress from study activity saved on this device.</Text>
-      <View style={[styles.card, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Text style={styles.label}>AVERAGE REVIEWER MASTERY</Text><Text style={styles.big}>{mastery}%</Text><View style={styles.track}><View style={[styles.fill, { width: `${mastery}%` }]} /></View></View>
+      <View style={[styles.card, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Text style={[styles.label, dark && { color: '#AAB7CC' }]}>AVERAGE REVIEWER MASTERY</Text><Text style={styles.big}>{mastery}%</Text><View style={[styles.track, dark && { backgroundColor: '#202E44' }]}><View style={[styles.fill, { width: `${mastery}%` }]} /></View></View>
       <View style={[styles.card, styles.streakCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
         <View style={styles.streakLeft}>
-          <View style={styles.streakIconWrapper}><Ionicons name="flame" size={26} color="#EA580C" /></View>
+          <View style={[styles.streakIconWrapper, dark && { backgroundColor: '#331B10' }]}><Ionicons name="flame" size={26} color="#EA580C" /></View>
           <View>
-            <Text style={styles.label}>DAILY STUDY STREAK</Text>
+            <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>DAILY STUDY STREAK</Text>
             <Text style={[styles.big, { color: '#EA580C' }]}>{streak.currentStreak} {streak.currentStreak === 1 ? 'day' : 'days'}</Text>
           </View>
         </View>
         <View style={styles.streakRight}>
           <Text style={[styles.bestStreakLabel, dark && { color: '#F2F6FF' }]}>Best: {streak.bestStreak}d</Text>
-          <Text style={styles.streakSub}>{streak.studiedToday ? 'Studied today! 🔥' : 'Study today to continue'}</Text>
+          <Text style={[styles.streakSub, dark && { color: '#AAB7CC' }]}>{streak.studiedToday ? 'Studied today! 🔥' : 'Study today to continue'}</Text>
         </View>
       </View>
       <View style={styles.grid}>
@@ -73,10 +73,10 @@ export default function AnalyticsScreen() {
         <Stat icon="time-outline" value={`${summary.sessions}`} label="Study sessions" />
       </View>
       <Text style={[styles.section, dark && { color: "#F2F6FF" }]}>Study sessions - last 7 days</Text>
-      <View style={[styles.card, styles.chart, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>{summary.week.map((count, index) => <View key={index} style={styles.barColumn}><View style={styles.barTrack}><View style={[styles.bar, { height: `${Math.max(5, count / maxDay * 100)}%` }]} /></View><Text style={styles.day}>{['M','T','W','T','F','S','S'][index]}</Text></View>)}</View>
+      <View style={[styles.card, styles.chart, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>{summary.week.map((count, index) => <View key={index} style={styles.barColumn}><View style={[styles.barTrack, dark && { backgroundColor: '#202E44' }]}><View style={[styles.bar, { height: `${Math.max(5, count / maxDay * 100)}%` }]} /></View><Text style={[styles.day, dark && { color: '#AAB7CC' }]}>{['M','T','W','T','F','S','S'][index]}</Text></View>)}</View>
       <Text style={[styles.section, dark && { color: '#F2F6FF' }]}>Reviewer mastery</Text>
-      {reviewers.length ? reviewers.map(item => <View key={item.reviewer_id} style={[styles.row, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><View style={styles.rowCopy}><Text style={[styles.rowTitle, dark && { color: '#F2F6FF' }]}>{item.name}</Text><Text style={[styles.rowSub, dark && { color: '#AAB7CC' }]}>{item.subject}</Text></View><Text style={styles.value}>{Math.round(item.mastery)}%</Text></View>) : <View style={[styles.card, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Text style={styles.empty}>Create a reviewer and study to see progress here.</Text></View>}
-      <Text style={styles.note}>Quiz accuracy, mastery, and daily streaks are calculated automatically as you complete quizzes and flashcard reviews on this device.</Text>
+      {reviewers.length ? reviewers.map(item => <View key={item.reviewer_id} style={[styles.row, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><View style={styles.rowCopy}><Text style={[styles.rowTitle, dark && { color: '#F2F6FF' }]}>{item.name}</Text><Text style={[styles.rowSub, dark && { color: '#AAB7CC' }]}>{item.subject}</Text></View><Text style={styles.value}>{Math.round(item.mastery)}%</Text></View>) : <View style={[styles.card, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Text style={[styles.empty, dark && { color: '#AAB7CC' }]}>Create a reviewer and study to see progress here.</Text></View>}
+      <Text style={[styles.note, dark && { color: '#AAB7CC' }]}>Quiz accuracy, mastery, and daily streaks are calculated automatically as you complete quizzes and flashcard reviews on this device.</Text>
     </ScrollView>
   </SafeAreaView>;
 }

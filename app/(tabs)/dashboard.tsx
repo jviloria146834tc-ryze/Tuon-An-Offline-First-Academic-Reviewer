@@ -188,7 +188,7 @@ export default function Dashboard() {
 
         <View style={[styles.reviewCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
 
-          <View style={styles.subjectIcon}>
+          <View style={[styles.subjectIcon, dark && { backgroundColor: '#102544' }]}>
             <Ionicons
               name="globe-outline"
               size={27}
@@ -289,7 +289,7 @@ function ReviewerCard({
   return (
     <Pressable style={[styles.reviewerCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={onPress} accessibilityRole="button">
 
-      <View style={styles.smallIcon}>
+      <View style={[styles.smallIcon, dark && { backgroundColor: '#102544' }]}>
         <Ionicons
           name={icon}
           size={22}

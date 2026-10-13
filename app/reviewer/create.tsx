@@ -16,8 +16,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { createReviewer } from '../../database/reviewers';
+import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function CreateReviewerScreen() {
+  const { dark } = useAppTheme();
   const [reviewerName, setReviewerName] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -38,13 +40,13 @@ export default function CreateReviewerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {/* HEADER */}
-        <View style={styles.header}>
+        <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
           <Pressable
             style={styles.backButton}
             onPress={() => router.back()}
@@ -52,11 +54,11 @@ export default function CreateReviewerScreen() {
             <Ionicons
               name="chevron-back"
               size={24}
-              color="#15264B"
+              color={dark ? '#F2F6FF' : '#15264B'}
             />
           </Pressable>
 
-          <Text style={styles.headerTitle}>
+          <Text style={[styles.headerTitle, dark && { color: '#F2F6FF' }]}>
             Create Reviewer
           </Text>
 
@@ -71,7 +73,7 @@ export default function CreateReviewerScreen() {
         >
           {/* INTRO */}
           <View style={styles.intro}>
-            <View style={styles.iconContainer}>
+            <View style={[styles.iconContainer, dark && { backgroundColor: '#172235' }]}>
               <Ionicons
                 name="book-outline"
                 size={32}
@@ -79,68 +81,68 @@ export default function CreateReviewerScreen() {
               />
             </View>
 
-            <Text style={styles.title}>
+            <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>
               What are you studying?
             </Text>
 
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>
               Create a reviewer to keep your study materials,
               quizzes and flashcards organized.
             </Text>
           </View>
 
           {/* REVIEWER NAME */}
-          <Text style={styles.label}>
+          <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
             REVIEWER NAME
           </Text>
 
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <Ionicons
               name="library-outline"
               size={20}
-              color="#999999"
+              color={dark ? '#7CB0FF' : '#999999'}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, dark && { color: '#F2F6FF' }]}
               placeholder="e.g. Networking"
-              placeholderTextColor="#A5A5A5"
+              placeholderTextColor={dark ? '#64748B' : '#A5A5A5'}
               value={reviewerName}
               onChangeText={setReviewerName}
             />
           </View>
 
           {/* SUBJECT */}
-          <Text style={styles.label}>
+          <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
             SUBJECT / COURSE CODE
           </Text>
 
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <Ionicons
               name="school-outline"
               size={20}
-              color="#999999"
+              color={dark ? '#7CB0FF' : '#999999'}
             />
 
             <TextInput
-              style={styles.input}
+              style={[styles.input, dark && { color: '#F2F6FF' }]}
               placeholder="e.g. IT 12"
-              placeholderTextColor="#A5A5A5"
+              placeholderTextColor={dark ? '#64748B' : '#A5A5A5'}
               value={subject}
               onChangeText={setSubject}
             />
           </View>
 
           {/* DESCRIPTION */}
-          <Text style={styles.label}>
+          <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
             DESCRIPTION
           </Text>
 
-          <View style={styles.descriptionContainer}>
+          <View style={[styles.descriptionContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <TextInput
-              style={styles.descriptionInput}
+              style={[styles.descriptionInput, dark && { color: '#F2F6FF' }]}
               placeholder="What topics will you study in this reviewer?"
-              placeholderTextColor="#A5A5A5"
+              placeholderTextColor={dark ? '#64748B' : '#A5A5A5'}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -148,14 +150,14 @@ export default function CreateReviewerScreen() {
               maxLength={250}
             />
 
-            <Text style={styles.characterCount}>
+            <Text style={[styles.characterCount, dark && { color: '#64748B' }]}>
               {description.length}/250
             </Text>
           </View>
 
           {/* REMINDER */}
-          <View style={styles.reminderCard}>
-            <View style={styles.reminderIcon}>
+          <View style={[styles.reminderCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+            <View style={[styles.reminderIcon, dark && { backgroundColor: '#2A2012' }]}>
               <Ionicons
                 name="notifications-outline"
                 size={23}
@@ -164,11 +166,11 @@ export default function CreateReviewerScreen() {
             </View>
 
             <View style={styles.reminderContent}>
-              <Text style={styles.reminderTitle}>
+              <Text style={[styles.reminderTitle, dark && { color: '#F2F6FF' }]}>
                 Daily Study Reminder
               </Text>
 
-              <Text style={styles.reminderDescription}>
+              <Text style={[styles.reminderDescription, dark && { color: '#AAB7CC' }]}>
                 Get reminded when it&apos;s time to review.
               </Text>
             </View>
@@ -177,7 +179,7 @@ export default function CreateReviewerScreen() {
               value={reminderEnabled}
               onValueChange={setReminderEnabled}
               trackColor={{
-                false: '#D9D9D9',
+                false: dark ? '#334155' : '#D9D9D9',
                 true: '#B8E994',
               }}
               thumbColor={
@@ -189,7 +191,7 @@ export default function CreateReviewerScreen() {
           </View>
 
           {/* OFFLINE MESSAGE */}
-          <View style={styles.offlineCard}>
+          <View style={[styles.offlineCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <Ionicons
               name="cloud-offline-outline"
               size={22}
@@ -197,11 +199,11 @@ export default function CreateReviewerScreen() {
             />
 
             <View style={styles.offlineTextContainer}>
-              <Text style={styles.offlineTitle}>
+              <Text style={[styles.offlineTitle, dark && { color: '#F2F6FF' }]}>
                 Available offline
               </Text>
 
-              <Text style={styles.offlineDescription}>
+              <Text style={[styles.offlineDescription, dark && { color: '#AAB7CC' }]}>
                 Your downloaded study content can be reviewed
                 even without an internet connection.
               </Text>
@@ -211,7 +213,7 @@ export default function CreateReviewerScreen() {
         </ScrollView>
 
         {/* BOTTOM BUTTON */}
-        <View style={styles.bottomContainer}>
+        <View style={[styles.bottomContainer, dark && { backgroundColor: '#0B1220', borderTopColor: '#2B3A52' }]}>
           <Pressable
             style={({ pressed }) => [
               styles.createButton,
