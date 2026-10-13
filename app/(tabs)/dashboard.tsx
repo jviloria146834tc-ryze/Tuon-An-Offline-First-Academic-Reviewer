@@ -157,21 +157,45 @@ export default function Dashboard() {
         {/* STATS */}
         <View style={styles.statsRow}>
 
-          <View style={[styles.statCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-            <Ionicons name="flame" size={24} color="#EA580C" style={styles.statEmoji} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.statCard,
+              dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+              pressed && styles.statCardPressed,
+            ]}
+            onPress={() => router.push('/(tabs)/analytics')}
+            accessibilityRole="button"
+            accessibilityLabel={`Daily streak: ${streak} days. Tap to open analytics.`}
+          >
+            <View style={styles.statHeaderRow}>
+              <Ionicons name="flame" size={24} color="#EA580C" />
+              <Ionicons name="chevron-forward" size={16} color={dark ? '#64748B' : '#A0AEC0'} />
+            </View>
             <Text style={[styles.statNumber, dark && { color: '#F2F6FF' }]}>{streak}d</Text>
             <Text style={[styles.statLabel, dark && { color: '#AAB7CC' }]}>
               Streak
             </Text>
-          </View>
+          </Pressable>
 
-          <View style={[styles.statCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-            <Ionicons name="analytics-outline" size={24} color="#00A8E8" style={styles.statEmoji} />
+          <Pressable
+            style={({ pressed }) => [
+              styles.statCard,
+              dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+              pressed && styles.statCardPressed,
+            ]}
+            onPress={() => router.push('/(tabs)/analytics')}
+            accessibilityRole="button"
+            accessibilityLabel={`Mastery: ${mastery} percent. Tap to open analytics.`}
+          >
+            <View style={styles.statHeaderRow}>
+              <Ionicons name="analytics-outline" size={24} color="#00A8E8" />
+              <Ionicons name="chevron-forward" size={16} color={dark ? '#64748B' : '#A0AEC0'} />
+            </View>
             <Text style={[styles.statNumber, dark && { color: '#F2F6FF' }]}>{mastery}%</Text>
             <Text style={[styles.statLabel, dark && { color: '#AAB7CC' }]}>
               Mastery
             </Text>
-          </View>
+          </Pressable>
 
         </View>
 
@@ -428,6 +452,18 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#DCE5F2',
     padding: 18,
+  },
+
+  statCardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
+  },
+
+  statHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
 
   statEmoji: {
