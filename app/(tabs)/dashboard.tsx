@@ -10,10 +10,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
+import * as Network from 'expo-network';
 import { getReviewers, SQLiteReviewer } from '../../database/reviewers';
 import { getStudyStreak } from '../../database/activity';
 import { getActiveStudentId, getCurrentAuthUser } from '../../firebase/auth';
 import { getDatabase } from '../../database/database';
+import { getSyncStatusInfo, performSync } from '../../firebase/sync';
 import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function Dashboard() {
@@ -24,6 +26,9 @@ export default function Dashboard() {
     const user = getCurrentAuthUser();
     return user?.displayName || user?.email?.split('@')[0] || 'Student';
   });
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -44,7 +49,9 @@ export default function Dashboard() {
           'SELECT display_name FROM students WHERE student_id = ?', id
         );
       }).catch(() => null),
-    ]).then(([items, streakInfo, profile]) => {
+      Network.getNetworkStateAsync().catch(() => ({ isConnected: true })),
+      getSyncStatusInfo().catch(() => null),
+    ]).then(([items, streakInfo, profile, netState, syncStatus]) => {
       if (active) {
         setReviewers(items);
         setStreak(streakInfo.currentStreak);
@@ -52,10 +59,25 @@ export default function Dashboard() {
           name = profile.display_name;
         }
         setUserName(getFirstName(name));
+        setIsOnline(Boolean(netState?.isConnected));
+        setPendingSyncCount(syncStatus?.pendingCount ?? 0);
       }
     }).catch(() => {});
     return () => { active = false; };
   }, []));
+
+  const handleManualSyncPress = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await performSync();
+      const status = await getSyncStatusInfo();
+      setPendingSyncCount(status.pendingCount);
+    } catch {}
+    finally {
+      setIsSyncing(false);
+    }
+  };
   const totalDue = reviewers.reduce((sum, reviewer) => sum + reviewer.due_cards, 0);
   const mastery = reviewers.length
     ? Math.round(reviewers.reduce((sum, reviewer) => sum + reviewer.mastery, 0) / reviewers.length)
@@ -91,6 +113,46 @@ export default function Dashboard() {
             />
           </Pressable>
         </View>
+
+        {/* OFFLINE / ONLINE SYNC STATUS BADGE */}
+        <Pressable
+          style={[
+            styles.syncStatusBadge,
+            dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+          ]}
+          onPress={handleManualSyncPress}
+          accessibilityRole="button"
+          accessibilityLabel="Check sync status"
+        >
+          <View
+            style={[
+              styles.syncDot,
+              {
+                backgroundColor: !isOnline
+                  ? '#EA580C'
+                  : pendingSyncCount > 0
+                  ? '#D79A00'
+                  : '#16A34A',
+              },
+            ]}
+          />
+          <Text style={[styles.syncStatusText, dark && { color: '#AAB7CC' }]}>
+            {!isOnline
+              ? pendingSyncCount > 0
+                ? `Offline • ${pendingSyncCount} change${pendingSyncCount > 1 ? 's' : ''} saved locally (queued)`
+                : 'Offline • Changes saved locally on device'
+              : isSyncing
+              ? 'Syncing with cloud...'
+              : pendingSyncCount > 0
+              ? `Online • ${pendingSyncCount} change${pendingSyncCount > 1 ? 's' : ''} pending sync (tap to sync)`
+              : 'Online • All changes synced'}
+          </Text>
+          <Ionicons
+            name={isSyncing ? "sync" : "chevron-forward"}
+            size={14}
+            color={dark ? '#8998AE' : '#94A3B8'}
+          />
+        </Pressable>
 
         {/* STATS */}
         <View style={styles.statsRow}>
@@ -283,7 +345,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 14,
+  },
+
+  syncStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#DCE5F2',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 20,
+    gap: 8,
+  },
+
+  syncDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  syncStatusText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
   },
 
   greeting: {

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { getActiveStudentId, getCurrentAuthUser, logoutUser } from '../../firebase/auth';
 import { getSyncStatusInfo, performSync, SyncStatusInfo } from '../../firebase/sync';
-import { getDatabase } from '../../database/database';
+import { getDatabase, seedDemoPresentationData } from '../../database/database';
 import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function SettingsScreen() {
@@ -83,6 +83,29 @@ export default function SettingsScreen() {
           onPress: async () => {
             await logoutUser();
             router.replace('/');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLoadDemoData = async () => {
+    Alert.alert(
+      'Load Demo Presentation Data',
+      'This will seed 3 rich reviewers (HCI, Database Systems, Physics), due flashcards, practice quizzes, and an active 5-day study streak for your defense presentation.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Load Demo Data',
+          onPress: async () => {
+            try {
+              const studentId = await getActiveStudentId();
+              await seedDemoPresentationData(studentId ?? undefined);
+              await refreshSyncAndUser();
+              Alert.alert('Demo Data Loaded', 'Reviewers, flashcards, study streak, and quizzes are ready for your presentation!');
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Could not seed demo data.');
+            }
           },
         },
       ]
@@ -333,6 +356,49 @@ export default function SettingsScreen() {
 
                 <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
                   Push offline changes and fetch cloud updates
+                </Text>
+              </View>
+
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color="#BBBBBB"
+              />
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.settingRow,
+                pressed && styles.pressed,
+              ]}
+              onPress={handleLoadDemoData}
+              accessibilityRole="button"
+              accessibilityLabel="Load demo presentation data"
+            >
+              <View
+                style={[
+                  styles.settingIcon,
+                  {
+                    backgroundColor: '#FFF5D6',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="sparkles-outline"
+                  size={21}
+                  color="#D79A00"
+                />
+              </View>
+
+              <View style={styles.settingContent}>
+                <Text style={[styles.settingTitle, { color: '#B45309' }]}>
+                  Reset / Seed Demo Data
+                </Text>
+
+                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
+                  Populate 3 subjects, flashcards & 5d streak for demo
                 </Text>
               </View>
 

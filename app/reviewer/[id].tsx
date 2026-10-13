@@ -400,19 +400,7 @@ export default function ReviewerDetailScreen() {
             }
           />
 
-          <ToolCard
-            icon="camera-outline"
-            title="Quick Capture"
-            description="Photos (up to 5) & notes"
-            background="#FFF5D6"
-            iconColor="#D79A00"
-            dark={dark}
-            onPress={() =>
-              router.push(
-                `/reviewer/${reviewerId}/quick-capture`
-              )
-            }
-          />
+
 
           <ToolCard
             icon="notifications-outline"

@@ -40,10 +40,14 @@ export type AttachedFile = {
 
 export default function AddMaterialScreen() {
   const { dark } = useAppTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, materialId: materialParam, mode } = useLocalSearchParams<{
+    id: string;
+    materialId?: string;
+    mode?: string;
+  }>();
   const reviewerId = Array.isArray(id) ? id[0] : id;
-  const materialParam = useLocalSearchParams<{ materialId?: string }>().materialId;
   const materialId = Array.isArray(materialParam) ? materialParam[0] : materialParam;
+  const captureMode = Array.isArray(mode) ? mode[0] : mode;
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -51,7 +55,8 @@ export default function AddMaterialScreen() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  // File Preview Modal State
+  // Quick Capture & Preview Modal States
+  const [captureModalVisible, setCaptureModalVisible] = useState(() => captureMode === 'capture');
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [activePreview, setActivePreview] = useState<AttachedFile | null>(null);
   const [previewImageUri, setPreviewImageUri] = useState<string | null>(null);
@@ -235,11 +240,48 @@ export default function AddMaterialScreen() {
     }
   };
 
-  const handleAddPhotos = async () => {
+  const handleCameraCapture = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert(
+          'Camera Permission Required',
+          'Please allow camera access in your device settings to take study photos.'
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const newAttachment: AttachedFile = {
+          id: `capture-${Date.now()}`,
+          name: asset.fileName || `Photo Capture ${attachments.length + 1}`,
+          type: 'image',
+          uri: asset.uri,
+          size: asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : undefined,
+        };
+        setAttachments(prev => [...prev, newAttachment]);
+        setCaptureModalVisible(false);
+      }
+    } catch (error) {
+      Alert.alert('Camera Error', error instanceof Error ? error.message : 'Could not launch camera.');
+    }
+  };
+
+  const handleGalleryCapture = async () => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert('Permission Required', 'Please enable photo access to attach photos.');
+        Alert.alert(
+          'Photo Access Required',
+          'Please allow photo library access in your settings to select photos.'
+        );
         return;
       }
 
@@ -258,9 +300,10 @@ export default function AddMaterialScreen() {
           size: asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : undefined,
         }));
         setAttachments(prev => [...prev, ...newPhotoAttachments]);
+        setCaptureModalVisible(false);
       }
     } catch (error) {
-      Alert.alert('Error', error instanceof Error ? error.message : 'Could not add photos.');
+      Alert.alert('Error', error instanceof Error ? error.message : 'Could not select photos.');
     }
   };
 
@@ -277,10 +320,27 @@ export default function AddMaterialScreen() {
     }
   };
 
+  const canSave =
+    Boolean(reviewerId) &&
+    (title.trim().length > 0 || content.trim().length > 0 || attachments.length > 0) &&
+    !saving;
+
   const saveMaterial = async () => {
-    if (!reviewerId || !title.trim() || saving) return;
+    if (!canSave || !reviewerId) return;
     setSaving(true);
     try {
+      let finalTitle = title.trim();
+      if (!finalTitle) {
+        if (content.trim()) {
+          const firstLine = content.trim().split('\n').find(l => l.trim().length > 0)?.trim() || 'Study Notes';
+          finalTitle = firstLine.length > 35 ? `${firstLine.slice(0, 32)}...` : firstLine;
+        } else if (attachments.length > 0) {
+          finalTitle = attachments[0].name.replace(/\.[^/.]+$/, '') || 'Quick Capture';
+        } else {
+          finalTitle = 'Study Notes';
+        }
+      }
+
       const infoParts: string[] = [];
       if (attachments.length > 0) {
         infoParts.push(`${attachments.length} attachment${attachments.length > 1 ? 's' : ''}`);
@@ -291,8 +351,8 @@ export default function AddMaterialScreen() {
 
       const input = {
         reviewer_id: reviewerId,
-        title,
-        content,
+        title: finalTitle,
+        content: content.trim(),
         info: infoParts.join(' • ') || 'Study Material',
         attachments: attachments.length > 0 ? JSON.stringify(attachments) : null,
       };
@@ -351,16 +411,18 @@ export default function AddMaterialScreen() {
         </Text>
 
         <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>
-          Preview photos, PDFs, documents, or manage your review notes.
+          Capture study photos, attach PDFs & documents, or write review notes.
         </Text>
 
         {/* MATERIAL TITLE */}
-        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>MATERIAL TITLE</Text>
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
+          MATERIAL TITLE {content.trim().length > 0 && !title.trim() ? '(OPTIONAL)' : ''}
+        </Text>
         <View style={[styles.inputContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons name="create-outline" size={20} color="#999999" />
           <TextInput
             style={[styles.input, dark && { color: '#F2F6FF' }]}
-            placeholder="e.g. Introduction to Networking"
+            placeholder="e.g. Introduction to Networking (auto-fills from notes if blank)"
             placeholderTextColor="#AAAAAA"
             value={title}
             onChangeText={setTitle}
@@ -370,7 +432,7 @@ export default function AddMaterialScreen() {
         {/* ATTACHMENTS & PREVIEW SECTION */}
         <View style={styles.sectionHeaderRow}>
           <Text style={[styles.label, { marginTop: 0, marginBottom: 0 }, dark && { color: '#AAB7CC' }]}>
-            ATTACHED FILES & PREVIEW ({attachments.length})
+            ATTACHED FILES ({attachments.length})
           </Text>
         </View>
 
@@ -461,10 +523,12 @@ export default function AddMaterialScreen() {
 
           <Pressable
             style={[styles.quickAddBtn, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
-            onPress={handleAddPhotos}
+            onPress={() => setCaptureModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Quick capture photos"
           >
-            <Ionicons name="images-outline" size={20} color="#D79A00" />
-            <Text style={[styles.quickAddText, { color: '#D79A00' }]}>Attach Photos</Text>
+            <Ionicons name="camera-outline" size={20} color="#D79A00" />
+            <Text style={[styles.quickAddText, { color: '#D79A00' }]}>Quick Capture</Text>
           </Pressable>
         </View>
 
@@ -510,9 +574,9 @@ export default function AddMaterialScreen() {
           style={({ pressed }) => [
             styles.saveButton,
             pressed && styles.buttonPressed,
-            (!title.trim() || saving) && styles.disabled,
+            !canSave && styles.disabled,
           ]}
-          disabled={!title.trim() || saving}
+          disabled={!canSave}
           onPress={saveMaterial}
         >
           <Ionicons name="checkmark-circle" size={20} color="#FFF" />
@@ -574,6 +638,80 @@ export default function AddMaterialScreen() {
                 <Text style={styles.docDoneText}>DONE</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* QUICK CAPTURE MODAL */}
+      <Modal visible={captureModalVisible} transparent animationType="fade">
+        <View style={styles.captureModalOverlay}>
+          <View style={[styles.captureModalContent, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
+            <View style={styles.captureModalHeader}>
+              <View style={styles.captureModalIcon}>
+                <Ionicons name="camera" size={22} color="#D79A00" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={[styles.captureModalTitle, dark && { color: '#F2F6FF' }]}>
+                  Quick Capture
+                </Text>
+                <Text style={[styles.captureModalSubtitle, dark && { color: '#AAB7CC' }]}>
+                  Snap new photos or choose pictures from device
+                </Text>
+              </View>
+              <Pressable
+                style={styles.captureModalClose}
+                onPress={() => setCaptureModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={22} color={dark ? '#AAB7CC' : '#64748B'} />
+              </Pressable>
+            </View>
+
+            <View style={styles.captureOptions}>
+              <Pressable
+                style={[styles.captureOptionCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+                onPress={handleCameraCapture}
+              >
+                <View style={[styles.captureOptionIconWrap, { backgroundColor: '#FFF5D6' }]}>
+                  <Ionicons name="camera" size={24} color="#D79A00" />
+                </View>
+                <View style={styles.captureOptionTextWrap}>
+                  <Text style={[styles.captureOptionTitle, dark && { color: '#F2F6FF' }]}>
+                    Take Photo with Camera
+                  </Text>
+                  <Text style={[styles.captureOptionDesc, dark && { color: '#AAB7CC' }]}>
+                    Snap boards, handouts, or notes
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </Pressable>
+
+              <Pressable
+                style={[styles.captureOptionCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+                onPress={handleGalleryCapture}
+              >
+                <View style={[styles.captureOptionIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                  <Ionicons name="images" size={24} color="#2563EB" />
+                </View>
+                <View style={styles.captureOptionTextWrap}>
+                  <Text style={[styles.captureOptionTitle, dark && { color: '#F2F6FF' }]}>
+                    Choose from Gallery
+                  </Text>
+                  <Text style={[styles.captureOptionDesc, dark && { color: '#AAB7CC' }]}>
+                    Select one or more saved pictures
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              </Pressable>
+            </View>
+
+            <Pressable
+              style={[styles.captureCancelBtn, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+              onPress={() => setCaptureModalVisible(false)}
+            >
+              <Text style={[styles.captureCancelText, dark && { color: '#AAB7CC' }]}>CANCEL</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -953,5 +1091,90 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 13,
     letterSpacing: 0.6,
+  },
+  captureModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  captureModalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  captureModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  captureModalIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFF5D6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureModalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#15264B',
+  },
+  captureModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  captureModalClose: {
+    padding: 6,
+  },
+  captureOptions: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  captureOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  captureOptionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  captureOptionTextWrap: {
+    flex: 1,
+  },
+  captureOptionTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#15264B',
+  },
+  captureOptionDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  captureCancelBtn: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  captureCancelText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    color: '#64748B',
   },
 });

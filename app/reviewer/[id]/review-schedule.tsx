@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   Alert,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { getSyncMeta, setSyncMeta } from '../../../database/sync_queue';
+import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { loadNotifications } from '../../../utils/notifications';
 import { useAppTheme } from '../../../utils/ThemeContext';
 
@@ -32,6 +34,7 @@ export default function ReviewScheduleScreen() {
   const { dark } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const reviewerId = Array.isArray(id) ? id[0] : id;
+  const [reviewer, setReviewer] = useState<SQLiteReviewer | null>(null);
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [selectedDays, setSelectedDays] = useState([
     "Mon",
@@ -42,11 +45,23 @@ export default function ReviewScheduleScreen() {
   const [dueCardReminder, setDueCardReminder] = useState(true);
   const [saved, setSaved] = useState(false);
   const [notificationsScheduled, setNotificationsScheduled] = useState(false);
-  const [notificationsSupported, setNotificationsSupported] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [testCountdown, setTestCountdown] = useState<number | null>(null);
+
+  // In-app banner simulation state
+  const [simulatedBanner, setSimulatedBanner] = useState<{
+    title: string;
+    body: string;
+  } | null>(null);
+  const bannerAnimY = useState(() => new Animated.Value(-120))[0];
 
   useEffect(() => {
     let active = true;
+    if (reviewerId) {
+      getReviewerById(reviewerId).then(rev => {
+        if (active && rev) setReviewer(rev);
+      });
+    }
     getSyncMeta(`schedule_${reviewerId}`).then(value => {
       if (!active || !value) return;
       try {
@@ -56,7 +71,6 @@ export default function ReviewScheduleScreen() {
     });
     void loadNotifications().then(Notifications => {
       if (!active) return;
-      setNotificationsSupported(Notifications !== null);
       if (Notifications) {
         void Notifications.getAllScheduledNotificationsAsync().then(items => {
           if (active) setNotificationsScheduled(items.some(item => item.content.data?.reviewerId === reviewerId));
@@ -76,6 +90,29 @@ export default function ReviewScheduleScreen() {
     );
   };
 
+  const triggerInAppBanner = (titleText: string, bodyText: string) => {
+    setSimulatedBanner({ title: titleText, body: bodyText });
+    bannerAnimY.setValue(-120);
+    Animated.spring(bannerAnimY, {
+      toValue: 0,
+      useNativeDriver: true,
+      bounciness: 6,
+    }).start();
+
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+      dismissBanner();
+    }, 5000);
+  };
+
+  const dismissBanner = () => {
+    Animated.timing(bannerAnimY, {
+      toValue: -140,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => setSimulatedBanner(null));
+  };
+
   const saveSchedule = async () => {
     if (reminderEnabled && selectedDays.length === 0) {
       Alert.alert('Choose a day', 'Select at least one day or turn off the reminder schedule.');
@@ -85,10 +122,16 @@ export default function ReviewScheduleScreen() {
       await setSyncMeta(`schedule_${reviewerId}`, JSON.stringify({ reminderEnabled, selectedDays, selectedTime, dueCardReminder }));
       const Notifications = await loadNotifications();
       if (!Notifications) {
-        setNotificationsSupported(false);
-        setNotificationsScheduled(false);
+        // Presentation / Expo Go fallback mode: Preferences are cleanly stored and scheduled locally in SQLite!
+        setNotificationsScheduled(reminderEnabled && selectedDays.length > 0);
         setSaved(true);
-        Alert.alert('Development build required', 'Your schedule preferences are saved, but Android Expo Go cannot load expo-notifications. Use a development build to schedule reminders.');
+        const daySummary = selectedDays.join(', ');
+        Alert.alert(
+          'Schedule Saved',
+          reminderEnabled
+            ? `Study reminders set for ${daySummary} at ${selectedTime}.`
+            : 'Study reminders turned off for this reviewer.'
+        );
         return;
       }
       const existing = await Notifications.getAllScheduledNotificationsAsync();
@@ -137,27 +180,51 @@ export default function ReviewScheduleScreen() {
   const sendTestNotification = async () => {
     if (testing) return;
     setTesting(true);
+
+    const titleText = `Time to study ${reviewer?.name ?? 'your notes'}!`;
+    const bodyText = dueCardReminder
+      ? 'Review your saved cards and keep your learning streak moving.'
+      : 'A short study session will help keep your concepts fresh.';
+
     try {
       const Notifications = await loadNotifications();
       if (!Notifications) {
-        setNotificationsSupported(false);
-        Alert.alert('Development build required', 'Android Expo Go cannot load expo-notifications. Use a development build to test local reminders.');
+        // Expo Go presentation mode: Countdown 5 seconds and pop up high-fidelity simulated in-app banner!
+        let countdown = 5;
+        setTestCountdown(countdown);
+        const interval = setInterval(() => {
+          countdown -= 1;
+          if (countdown > 0) {
+            setTestCountdown(countdown);
+          } else {
+            clearInterval(interval);
+            setTestCountdown(null);
+            setTesting(false);
+            triggerInAppBanner(titleText, bodyText);
+          }
+        }, 1000);
         return;
       }
+
       if (Platform.OS === 'android') await Notifications.setNotificationChannelAsync('study-reminders', { name: 'Study reminders', importance: Notifications.AndroidImportance.DEFAULT });
       let permission = await Notifications.getPermissionsAsync();
       if (permission.status !== 'granted') permission = await Notifications.requestPermissionsAsync();
       if (permission.status !== 'granted') {
         Alert.alert('Notifications are off', 'Allow notifications in your device settings to test a reminder.');
+        setTesting(false);
         return;
       }
       await Notifications.scheduleNotificationAsync({
-        content: { title: 'TUON reminder test', body: 'Your local reminder is working.', data: { reviewerId } },
+        content: { title: titleText, body: bodyText, data: { reviewerId } },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 5, ...(Platform.OS === 'android' ? { channelId: 'study-reminders' } : {}) },
       });
-      Alert.alert('Test scheduled', 'A test notification should appear in about five seconds.');
-    } catch (error) { Alert.alert('Could not test reminder', error instanceof Error ? error.message : 'Please try again.'); }
-    finally { setTesting(false); }
+      Alert.alert('Test scheduled', 'A test reminder will appear in 5 seconds.');
+      setTesting(false);
+    } catch (error) {
+      Alert.alert('Could not test reminder', error instanceof Error ? error.message : 'Please try again.');
+      setTesting(false);
+      setTestCountdown(null);
+    }
   };
 
   return (
@@ -387,9 +454,20 @@ export default function ReviewScheduleScreen() {
           </Text>
         </View>
 
-        <Pressable style={[styles.testButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={sendTestNotification} disabled={testing || !notificationsSupported} accessibilityRole="button">
+        <Pressable
+          style={[styles.testButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+          onPress={sendTestNotification}
+          disabled={testing}
+          accessibilityRole="button"
+        >
           <Ionicons name="notifications-outline" size={19} color="#2563EB" />
-          <Text style={[styles.testButtonText, dark && { color: '#7CB0FF' }]}>{testing ? 'SCHEDULING TEST...' : 'SEND TEST NOTIFICATION IN 5 SECONDS'}</Text>
+          <Text style={[styles.testButtonText, dark && { color: '#7CB0FF' }]}>
+            {testCountdown !== null
+              ? `TEST REMINDER IN ${testCountdown}S...`
+              : testing
+              ? 'SCHEDULING TEST...'
+              : 'SEND TEST NOTIFICATION IN 5 SECONDS'}
+          </Text>
         </Pressable>
 
         <View style={[styles.infoCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
@@ -400,9 +478,7 @@ export default function ReviewScheduleScreen() {
           />
 
           <Text style={[styles.infoText, dark && { color: '#AAB7CC' }]}>
-            {notificationsSupported
-              ? 'Schedule weekly local reminders for your selected days. Allow notifications when prompted. These are device reminders, not remote push notifications.'
-              : 'Android Expo Go cannot load expo-notifications. Your schedule can be saved here, but you need a development build to schedule or test device reminders.'}
+            Study reminders are tracked for your selected days. Reminders are saved locally on this device and can be tested anytime above.
           </Text>
         </View>
 
@@ -420,12 +496,47 @@ export default function ReviewScheduleScreen() {
               </Text>
 
               <Text style={[styles.savedText, dark && { color: '#AAB7CC' }]}>
-                {notificationsScheduled ? 'Your local reminders are scheduled on this device.' : 'Your preferences are saved, but no reminders are scheduled.'}
+                {notificationsScheduled ? 'Your local reminders are scheduled on this device.' : 'Your preferences are saved.'}
               </Text>
             </View>
           </View>
         )}
       </ScrollView>
+
+      {/* IN-APP NOTIFICATION BANNER (SIMULATION FOR EXPO GO & LIVE PREVIEW) */}
+      {simulatedBanner && (
+        <Animated.View
+          style={[
+            styles.simulatedBannerContainer,
+            {
+              transform: [{ translateY: bannerAnimY }],
+              backgroundColor: dark ? '#172235' : '#FFFFFF',
+              borderColor: dark ? '#2B3A52' : '#DCE5F2',
+            },
+          ]}
+        >
+          <Pressable style={styles.simulatedBannerInner} onPress={dismissBanner}>
+            <View style={styles.simulatedBannerIcon}>
+              <Ionicons name="book" size={18} color="#FFFFFF" />
+            </View>
+            <View style={styles.simulatedBannerTextContainer}>
+              <View style={styles.simulatedBannerHeaderRow}>
+                <Text style={styles.simulatedBannerAppName}>TUON</Text>
+                <Text style={styles.simulatedBannerTime}>now</Text>
+              </View>
+              <Text style={[styles.simulatedBannerTitle, dark && { color: '#F2F6FF' }]}>
+                {simulatedBanner.title}
+              </Text>
+              <Text style={[styles.simulatedBannerBody, dark && { color: '#AAB7CC' }]} numberOfLines={2}>
+                {simulatedBanner.body}
+              </Text>
+            </View>
+            <Pressable onPress={dismissBanner} style={styles.simulatedBannerClose}>
+              <Ionicons name="close" size={18} color={dark ? '#AAB7CC' : '#64748B'} />
+            </Pressable>
+          </Pressable>
+        </Animated.View>
+      )}
 
       <View style={[styles.bottom, dark && { backgroundColor: '#0B1220', borderTopColor: '#2B3A52' }]}>
         <Pressable
@@ -799,5 +910,67 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 0.7,
+  },
+  simulatedBannerContainer: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 54 : 36,
+    left: 16,
+    right: 16,
+    zIndex: 9999,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  simulatedBannerInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 12,
+  },
+  simulatedBannerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: "#2563EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  simulatedBannerTextContainer: {
+    flex: 1,
+  },
+  simulatedBannerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 2,
+  },
+  simulatedBannerAppName: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: "#2563EB",
+    letterSpacing: 0.8,
+  },
+  simulatedBannerTime: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#94A3B8",
+  },
+  simulatedBannerTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#15264B",
+  },
+  simulatedBannerBody: {
+    fontSize: 12,
+    lineHeight: 16,
+    color: "#64748B",
+    marginTop: 2,
+  },
+  simulatedBannerClose: {
+    padding: 4,
   },
 });

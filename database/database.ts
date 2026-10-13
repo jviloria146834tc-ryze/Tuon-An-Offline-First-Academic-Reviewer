@@ -266,3 +266,210 @@ export async function seedReviewers(): Promise<void> {
     );
   }
 }
+
+/**
+ * Seeds rich, realistic presentation demo data for defense and live evaluations.
+ * Replaces or seeds 3 comprehensive reviewers with due cards, flashcards, study streak sessions, and quizzes.
+ */
+export async function seedDemoPresentationData(targetStudentId?: string): Promise<void> {
+  const db = await getDatabase();
+  const studentId = targetStudentId || 'student-1';
+
+  // 1. Ensure student exists
+  await db.runAsync(
+    `INSERT OR IGNORE INTO students (student_id, email, display_name)
+     VALUES (?, ?, ?)`,
+    studentId, 'student@example.com', 'TUON Student'
+  );
+
+  // 2. Demo Reviewers
+  const demoReviewers = [
+    {
+      id: 'demo-rev-1',
+      name: 'IT 26: Human Computer Interaction',
+      subject: 'HCI & Interaction Design',
+      description: 'Norman design principles, usability heuristics, affordances, and cognitive models.',
+      mastery: 75,
+      dueCards: 8,
+    },
+    {
+      id: 'demo-rev-2',
+      name: 'IT 25: Database Systems',
+      subject: 'Database Architecture & SQL',
+      description: 'Relational algebra, normalization (1NF-3NF), indexing, and transaction ACID properties.',
+      mastery: 60,
+      dueCards: 6,
+    },
+    {
+      id: 'demo-rev-3',
+      name: 'General Physics',
+      subject: 'Classical Mechanics & Energy',
+      description: 'Newtonian laws of motion, kinematics, work-energy theorem, and thermodynamics.',
+      mastery: 45,
+      dueCards: 5,
+    },
+  ];
+
+  for (const rev of demoReviewers) {
+    await db.runAsync(
+      `INSERT INTO reviewers (reviewer_id, student_id, name, subject, description, mastery, due_cards)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(reviewer_id) DO UPDATE SET
+         name = excluded.name,
+         subject = excluded.subject,
+         description = excluded.description,
+         mastery = excluded.mastery,
+         due_cards = excluded.due_cards,
+         deleted_at = NULL`,
+      rev.id, studentId, rev.name, rev.subject, rev.description, rev.mastery, rev.dueCards
+    );
+  }
+
+  // 3. Demo Study Materials
+  const demoMaterials = [
+    {
+      id: 'demo-mat-1',
+      reviewerId: 'demo-rev-1',
+      title: 'Norman Design Principles & Affordances',
+      type: 'Study Material',
+      info: '1,420 characters',
+      content: 'Key HCI Principles:\n1. Affordance: The perceived and actual properties of an object that indicate how it can be used.\n2. Signifier: Clues where action should take place.\n3. Feedback: Sending back information about what action has been completed.\n4. Mapping: Relationship between control and results in the world.\n5. Consistency: Designing interfaces to use similar elements for similar tasks.',
+    },
+    {
+      id: 'demo-mat-2',
+      reviewerId: 'demo-rev-1',
+      title: 'HCI Design Flashcard Deck',
+      type: 'Flashcards',
+      info: '8 cards',
+      content: 'Spaced repetition deck for HCI exam review.',
+    },
+    {
+      id: 'demo-mat-3',
+      reviewerId: 'demo-rev-2',
+      title: 'Database Normalization & ACID Rules',
+      type: 'Study Material',
+      info: '980 characters',
+      content: 'ACID Properties of Transactions:\n- Atomicity: All operations in the transaction succeed, or all fail.\n- Consistency: Database moves between valid states following constraints.\n- Isolation: Concurrent transactions do not interfere with each other.\n- Durability: Once committed, state changes survive system crashes.\n\nNormalization Forms:\n- 1NF: Atomic values, no repeating groups.\n- 2NF: 1NF + no partial functional dependencies.\n- 3NF: 2NF + no transitive dependencies.',
+    },
+    {
+      id: 'demo-mat-4',
+      reviewerId: 'demo-rev-2',
+      title: 'SQL & Database Flashcards',
+      type: 'Flashcards',
+      info: '6 cards',
+      content: 'Spaced repetition deck for SQL concepts.',
+    },
+    {
+      id: 'demo-mat-5',
+      reviewerId: 'demo-rev-2',
+      title: 'Database Systems Midterm Quiz',
+      type: 'Quiz',
+      info: '5 questions',
+      content: JSON.stringify({ question_type: 'Multiple Choice', difficulty: 'Medium' }),
+    },
+  ];
+
+  for (const mat of demoMaterials) {
+    await db.runAsync(
+      `INSERT INTO materials (material_id, reviewer_id, title, type, info, content, mastery)
+       VALUES (?, ?, ?, ?, ?, ?, 60)
+       ON CONFLICT(material_id) DO UPDATE SET
+         title = excluded.title,
+         type = excluded.type,
+         info = excluded.info,
+         content = excluded.content,
+         deleted_at = NULL`,
+      mat.id, mat.reviewerId, mat.title, mat.type, mat.info, mat.content
+    );
+  }
+
+  // 4. Demo Flashcards & SRS Progress
+  const demoCards = [
+    { id: 'demo-card-1', matId: 'demo-mat-2', q: 'What is an affordance in HCI?', a: 'A relationship between the properties of an object and the capabilities of the agent using it.' },
+    { id: 'demo-card-2', matId: 'demo-mat-2', q: 'What is a signifier?', a: 'Any perceivable cue or signal that indicates what action can be taken and where.' },
+    { id: 'demo-card-3', matId: 'demo-mat-2', q: 'What does Gulf of Execution refer to?', a: 'The degree of difficulty the user experiences in figuring out how to act upon the system.' },
+    { id: 'demo-card-4', matId: 'demo-mat-2', q: 'What does Gulf of Evaluation refer to?', a: 'The user effort required to assess the system state and see if their goal was achieved.' },
+    { id: 'demo-card-5', matId: 'demo-mat-4', q: 'What does ACID stand for in DBMS?', a: 'Atomicity, Consistency, Isolation, Durability.' },
+    { id: 'demo-card-6', matId: 'demo-mat-4', q: 'What condition satisfies Third Normal Form (3NF)?', a: 'It must be in 2NF and have no transitive functional dependencies between non-key attributes.' },
+  ];
+
+  for (const card of demoCards) {
+    await db.runAsync(
+      `INSERT INTO flashcards (flashcard_id, material_id, question, answer)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(flashcard_id) DO UPDATE SET
+         question = excluded.question,
+         answer = excluded.answer,
+         deleted_at = NULL`,
+      card.id, card.matId, card.q, card.a
+    );
+
+    await db.runAsync(
+      `INSERT INTO srs_progress (flashcard_id, ease_factor, interval_days, repetitions, next_review_date, last_reviewed_at)
+       VALUES (?, 2.5, 0, 1, date('now'), CURRENT_TIMESTAMP)
+       ON CONFLICT(flashcard_id) DO UPDATE SET
+         interval_days = 0,
+         next_review_date = date('now')`,
+      card.id
+    );
+  }
+
+  // 5. Demo Quiz & Questions
+  const quizId = 'demo-quiz-1';
+  await db.runAsync(
+    `INSERT INTO quizzes (quiz_id, material_id, title, question_count)
+     VALUES (?, 'demo-mat-5', 'Database Systems Midterm Quiz', 3)
+     ON CONFLICT(quiz_id) DO UPDATE SET deleted_at = NULL`,
+    quizId
+  );
+
+  const quizQuestions = [
+    {
+      id: 'demo-qq-1',
+      q: 'Which ACID property ensures that all transaction steps succeed or none do?',
+      a: 'Atomicity', b: 'Consistency', c: 'Isolation', d: 'Durability',
+      correct: '0',
+    },
+    {
+      id: 'demo-qq-2',
+      q: 'Which normal form eliminates transitive functional dependencies?',
+      a: '1NF', b: '2NF', c: '3NF', d: 'BCNF',
+      correct: '2',
+    },
+    {
+      id: 'demo-qq-3',
+      q: 'Which SQL clause is used to filter aggregated group results?',
+      a: 'WHERE', b: 'HAVING', c: 'GROUP BY', d: 'ORDER BY',
+      correct: '1',
+    },
+  ];
+
+  for (const qq of quizQuestions) {
+    await db.runAsync(
+      `INSERT INTO quiz_questions (question_id, quiz_id, question, option_a, option_b, option_c, option_d, correct_answer)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(question_id) DO UPDATE SET
+         question = excluded.question,
+         option_a = excluded.option_a,
+         option_b = excluded.option_b,
+         option_c = excluded.option_c,
+         option_d = excluded.option_d,
+         correct_answer = excluded.correct_answer,
+         deleted_at = NULL`,
+      qq.id, quizId, qq.q, qq.a, qq.b, qq.c, qq.d, qq.correct
+    );
+  }
+
+  // 6. Demo 5-Day Study Streak (Backdated study sessions for continuous streak)
+  for (let i = 0; i < 5; i++) {
+    const sessionDate = new Date();
+    sessionDate.setDate(sessionDate.getDate() - i);
+    const dateIso = sessionDate.toISOString();
+    await db.runAsync(
+      `INSERT INTO study_sessions (session_id, student_id, reviewer_id, started_at, ended_at, activity_type)
+       VALUES (?, ?, 'demo-rev-1', ?, ?, 'study')
+       ON CONFLICT(session_id) DO NOTHING`,
+      `demo-session-${i}`, studentId, dateIso, dateIso
+    );
+  }
+}

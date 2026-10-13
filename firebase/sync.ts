@@ -8,6 +8,7 @@ import {
   setDoc,
   Timestamp,
 } from 'firebase/firestore';
+import * as Network from 'expo-network';
 import { getFirestoreInstance, initializeFirebase } from './index';
 import { getActiveStudentId } from './auth';
 import { getDatabase } from '../database/database';
@@ -68,6 +69,24 @@ export async function performSync(): Promise<SyncResult> {
       timestamp: new Date().toISOString(),
       error: 'Firebase is not configured. Cloud sync requires Firebase credentials.',
     };
+  }
+
+  // Pre-check network connectivity before contacting Firestore
+  try {
+    const net = await Network.getNetworkStateAsync();
+    if (!net.isConnected || net.isInternetReachable === false) {
+      await setSyncMeta('sync_state', 'idle');
+      await setSyncMeta('last_sync_error', 'Device is offline. Changes are saved locally.');
+      return {
+        success: false,
+        pushedCount: 0,
+        pulledCount: 0,
+        timestamp: new Date().toISOString(),
+        error: 'Device is offline. Changes are saved locally and will sync when reconnected.',
+      };
+    }
+  } catch {
+    // Continue if network state query is unavailable
   }
 
   await setSyncMeta('sync_state', 'syncing');
@@ -215,15 +234,28 @@ export async function performSync(): Promise<SyncResult> {
     };
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : 'Synchronization failed.';
-    console.warn('Sync failed:', errorMsg);
-    await setSyncMeta('sync_state', 'error');
-    await setSyncMeta('last_sync_error', errorMsg);
+    const isOffline =
+      errorMsg.toLowerCase().includes('offline') ||
+      errorMsg.toLowerCase().includes('unavailable') ||
+      errorMsg.toLowerCase().includes('network');
+
+    if (isOffline) {
+      await setSyncMeta('sync_state', 'idle');
+      await setSyncMeta('last_sync_error', 'Device is offline. Changes are saved locally.');
+    } else {
+      console.warn('Sync failed:', errorMsg);
+      await setSyncMeta('sync_state', 'error');
+      await setSyncMeta('last_sync_error', errorMsg);
+    }
+
     return {
       success: false,
       pushedCount,
       pulledCount,
       timestamp: new Date().toISOString(),
-      error: errorMsg,
+      error: isOffline
+        ? 'Device is offline. Changes are saved locally and will sync when reconnected.'
+        : errorMsg,
     };
   }
 }
@@ -531,8 +563,6 @@ function safeJsonParse(jsonString: string): Record<string, unknown> {
   }
 }
 
-import * as Network from 'expo-network';
-
 let autoSyncInitialized = false;
 const AUTO_SYNC_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -551,8 +581,8 @@ export function initNetworkAutoSync(): () => void {
     try {
       isSyncingAutomatically = true;
       await performSync();
-    } catch (err) {
-      console.warn('[AutoSync] Background sync failed:', err);
+    } catch {
+      // Quietly ignore background network interruptions
     } finally {
       isSyncingAutomatically = false;
     }

@@ -118,7 +118,7 @@ export type SQLiteSrsProgress = {
   updated_at?: string;
 };
 
-export type SrsRating = 'Again' | 'Hard' | 'Good' | 'Easy';
+export type SrsRating = 'Again' | 'Hard' | 'Good' | 'Medium' | 'Easy';
 
 export async function getSrsProgress(flashcardId: string): Promise<SQLiteSrsProgress | null> {
   const db = await getDatabase();
@@ -140,8 +140,8 @@ export function calculateNextSrs(
   const currentInterval = current?.interval_days ?? 0;
 
   // Grade quality q from 0 to 5
-  // Again: 1, Hard: 3, Good: 4, Easy: 5
-  const q = rating === 'Again' ? 1 : rating === 'Hard' ? 3 : rating === 'Good' ? 4 : 5;
+  // Again: 1, Hard: 3, Medium/Good: 4, Easy: 5
+  const q = rating === 'Again' ? 1 : rating === 'Hard' ? 3 : (rating === 'Good' || rating === 'Medium') ? 4 : 5;
 
   // SM-2 formula: EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
   let newEase = currentEase + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02));

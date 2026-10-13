@@ -1,5 +1,5 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
-import { Firestore, getFirestore } from 'firebase/firestore';
+import { Firestore, getFirestore, setLogLevel } from 'firebase/firestore';
 import {
   Auth,
   getAuth,
@@ -34,6 +34,12 @@ export function initializeFirebase(): FirebaseSetup {
     });
   } catch {
     auth = getAuth(app);
+  }
+
+  try {
+    setLogLevel('silent');
+  } catch {
+    // Ignore if not supported in environment
   }
 
   setup = {
