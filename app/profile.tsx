@@ -45,7 +45,7 @@ export default function ProfileScreen() {
       <Text style={styles.label}>NAME</Text>
       <TextInput value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={dark ? '#8090A8' : '#9BA6B8'} style={[styles.input, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]} autoCapitalize="words" returnKeyType="done" />
       <Text style={styles.label}>EMAIL</Text>
-      <TextInput value={user?.email || 'Offline / Guest Mode'} editable={false} style={[styles.input, styles.readOnly, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#AAB7CC' }]} />
+      <TextInput value={user?.email || ''} placeholder="Not connected" placeholderTextColor={dark ? '#8090A8' : '#9BA6B8'} editable={false} style={[styles.input, styles.readOnly, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#AAB7CC' }]} />
       <Pressable onPress={save} disabled={saving} style={[styles.save, saving && { opacity: 0.65 }]}>
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save profile</Text>}
       </Pressable>

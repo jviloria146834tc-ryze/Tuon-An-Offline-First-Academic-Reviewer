@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import * as Network from 'expo-network';
 import { getActiveStudentId, getCurrentAuthUser, logoutUser } from '../../firebase/auth';
 import { getSyncStatusInfo, performSync, SyncStatusInfo } from '../../firebase/sync';
 import { getDatabase, seedDemoPresentationData } from '../../database/database';
@@ -21,9 +22,10 @@ export default function SettingsScreen() {
   const { dark } = useAppTheme();
   const [syncInfo, setSyncInfo] = useState<SyncStatusInfo | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [userEmail, setUserEmail] = useState(() => {
     const user = getCurrentAuthUser();
-    return user?.email || 'Offline / Guest Mode';
+    return user?.email || '';
   });
   const [userName, setUserName] = useState(() => {
     const user = getCurrentAuthUser();
@@ -32,7 +34,7 @@ export default function SettingsScreen() {
 
   const refreshSyncAndUser = useCallback(async () => {
     const user = getCurrentAuthUser();
-    setUserEmail(user?.email || 'Offline / Guest Mode');
+    setUserEmail(user?.email || '');
     let name = user?.displayName || user?.email?.split('@')[0] || 'Local Student';
     try {
       const id = await getActiveStudentId();
@@ -43,8 +45,12 @@ export default function SettingsScreen() {
       if (profile?.display_name) name = profile.display_name;
     } catch { /* Keep the current Firebase or guest name if local profile lookup fails. */ }
     setUserName(name);
-    const info = await getSyncStatusInfo();
+    const [info, netState] = await Promise.all([
+      getSyncStatusInfo(),
+      Network.getNetworkStateAsync().catch(() => ({ isConnected: true })),
+    ]);
     setSyncInfo(info);
+    setIsOnline(Boolean(netState?.isConnected));
   }, []);
 
   useFocusEffect(useCallback(() => { void refreshSyncAndUser(); }, [refreshSyncAndUser]));
@@ -169,9 +175,11 @@ export default function SettingsScreen() {
                 {userName}
               </Text>
 
-              <Text style={[styles.profileEmail, dark && { color: '#AAB7CC' }]}>
-                {userEmail}
-              </Text>
+              {userEmail ? (
+                <Text style={[styles.profileEmail, dark && { color: '#AAB7CC' }]}>
+                  {userEmail}
+                </Text>
+              ) : null}
             </View>
 
             <Ionicons
@@ -191,49 +199,24 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF2FF',
+                    backgroundColor: !isOnline
+                      ? dark ? '#331B10' : '#FFF4ED'
+                      : !syncInfo?.isConfigured
+                      ? dark ? '#1C2433' : '#F4F7FC'
+                      : '#E5F8FF',
                   },
                 ]}
               >
                 <Ionicons
-                  name="phone-portrait-outline"
+                  name={!isOnline ? 'cloud-offline-outline' : 'cloud-outline'}
                   size={21}
-                  color="#2563EB"
-                />
-              </View>
-
-              <View style={styles.settingContent}>
-                <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>
-                  Offline Data
-                </Text>
-
-                <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
-                  Stored locally in device SQLite
-                </Text>
-              </View>
-
-              <View style={styles.statusBadge}>
-                <Text style={styles.statusBadgeText}>
-                  LOCAL
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.settingRow}>
-              <View
-                style={[
-                  styles.settingIcon,
-                  {
-                    backgroundColor: syncInfo?.isConfigured ? '#E5F8FF' : '#F4F7FC',
-                  },
-                ]}
-              >
-                <Ionicons
-                  name="cloud-outline"
-                  size={21}
-                  color={syncInfo?.isConfigured ? '#00A8E8' : '#999999'}
+                  color={
+                    !isOnline
+                      ? '#EA580C'
+                      : !syncInfo?.isConfigured
+                      ? '#999999'
+                      : '#00A8E8'
+                  }
                 />
               </View>
 
@@ -243,11 +226,17 @@ export default function SettingsScreen() {
                 </Text>
 
                 <Text style={[styles.settingSubtitle, dark && { color: '#AAB7CC' }]}>
-                  {syncInfo?.isConfigured
-                    ? syncInfo.pendingCount > 0
-                      ? `${syncInfo.pendingCount} local change(s) queued`
-                      : 'All changes synced with cloud'
-                    : 'Firebase not configured (offline mode)'}
+                  {!isOnline
+                    ? syncInfo?.pendingCount && syncInfo.pendingCount > 0
+                      ? `${syncInfo.pendingCount} local change(s) queued (offline)`
+                      : 'Device is offline • Saved locally'
+                    : !syncInfo?.isConfigured
+                    ? 'Firebase not configured'
+                    : isSyncing
+                    ? 'Syncing with cloud...'
+                    : syncInfo?.pendingCount && syncInfo.pendingCount > 0
+                    ? `${syncInfo.pendingCount} local change(s) queued`
+                    : 'All changes synced with cloud'}
                 </Text>
               </View>
 
@@ -255,13 +244,15 @@ export default function SettingsScreen() {
                 style={[
                   styles.statusBadge,
                   {
-                    backgroundColor: !syncInfo?.isConfigured
-                      ? '#E8EEF8'
+                    backgroundColor: !isOnline
+                      ? dark ? '#331B10' : '#FFF4ED'
+                      : !syncInfo?.isConfigured
+                      ? dark ? '#1E293B' : '#E8EEF8'
                       : isSyncing
                       ? '#E5F8FF'
-                      : syncInfo.state === 'error'
+                      : syncInfo?.state === 'error'
                       ? '#FFF0F0'
-                      : '#EAF2FF',
+                      : dark ? '#0F291E' : '#ECFDF5',
                   },
                 ]}
               >
@@ -269,23 +260,27 @@ export default function SettingsScreen() {
                   style={[
                     styles.statusBadgeText,
                     {
-                      color: !syncInfo?.isConfigured
+                      color: !isOnline
+                        ? '#EA580C'
+                        : !syncInfo?.isConfigured
                         ? '#888888'
                         : isSyncing
                         ? '#00A8E8'
-                        : syncInfo.state === 'error'
+                        : syncInfo?.state === 'error'
                         ? '#FF4B4B'
-                        : '#2563EB',
+                        : '#16A34A',
                     },
                   ]}
                 >
-                  {!syncInfo?.isConfigured
+                  {!isOnline
+                    ? 'OFFLINE'
+                    : !syncInfo?.isConfigured
                     ? 'OFFLINE'
                     : isSyncing
                     ? 'SYNCING'
-                    : syncInfo.state === 'error'
+                    : syncInfo?.state === 'error'
                     ? 'ERROR'
-                    : 'ACTIVE'}
+                    : 'ONLINE'}
                 </Text>
               </View>
             </View>
