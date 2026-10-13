@@ -34,36 +34,30 @@ export default function FlashcardGeneratorScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const loadData = useCallback(async () => {
+    if (!reviewerId) return;
+    try {
+      const [reviewerData, materialData, deckData] = await Promise.all([
+        getReviewerById(reviewerId),
+        getMaterialsByReviewer(reviewerId),
+        getFlashcardDecksByReviewer(reviewerId),
+      ]);
+      setReviewer(reviewerData);
+      const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
+      setMaterials(sourceItems);
+      setSelectedMaterials(sourceItems.map(item => item.material_id));
+      setExistingDecks(deckData);
+    } catch (error) {
+      Alert.alert('Error loading flashcard data', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [reviewerId]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const loadData = async () => {
-        if (!reviewerId) return;
-        try {
-          const [reviewerData, materialData, deckData] = await Promise.all([
-            getReviewerById(reviewerId),
-            getMaterialsByReviewer(reviewerId),
-            getFlashcardDecksByReviewer(reviewerId),
-          ]);
-          if (!active) return;
-          setReviewer(reviewerData);
-          const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
-          setMaterials(sourceItems);
-          setSelectedMaterials(sourceItems.map(item => item.material_id));
-          setExistingDecks(deckData);
-        } catch (error) {
-          if (!active) return;
-          Alert.alert('Error loading flashcard data', error instanceof Error ? error.message : 'Please try again.');
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
       void loadData();
-      return () => {
-        active = false;
-      };
-    }, [reviewerId])
+    }, [loadData])
   );
 
   const selectedItems = useMemo(

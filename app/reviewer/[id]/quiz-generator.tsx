@@ -32,36 +32,30 @@ export default function QuizBuilderScreen() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  const loadData = useCallback(async () => {
+    if (!reviewerId) return;
+    try {
+      const [reviewerData, materialData, quizzesData] = await Promise.all([
+        getReviewerById(reviewerId),
+        getMaterialsByReviewer(reviewerId),
+        getQuizzesByReviewer(reviewerId),
+      ]);
+      setReviewer(reviewerData);
+      const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
+      setMaterials(sourceItems);
+      setSelectedMaterials(sourceItems.map(item => item.material_id));
+      setExistingQuizzes(quizzesData);
+    } catch (error) {
+      Alert.alert('Error loading data', error instanceof Error ? error.message : 'Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [reviewerId]);
+
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      const loadData = async () => {
-        if (!reviewerId) return;
-        try {
-          const [reviewerData, materialData, quizzesData] = await Promise.all([
-            getReviewerById(reviewerId),
-            getMaterialsByReviewer(reviewerId),
-            getQuizzesByReviewer(reviewerId),
-          ]);
-          if (!active) return;
-          setReviewer(reviewerData);
-          const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
-          setMaterials(sourceItems);
-          setSelectedMaterials(sourceItems.map(item => item.material_id));
-          setExistingQuizzes(quizzesData);
-        } catch (error) {
-          if (!active) return;
-          Alert.alert('Error loading data', error instanceof Error ? error.message : 'Please try again.');
-        } finally {
-          if (active) setLoading(false);
-        }
-      };
-
       void loadData();
-      return () => {
-        active = false;
-      };
-    }, [reviewerId])
+    }, [loadData])
   );
 
   const selectedItems = useMemo(
