@@ -92,19 +92,19 @@ export default function ReviewersScreen() {
           </Pressable>
         </View>
 
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={17} color="#9AA3B2" />
+        <View style={[styles.searchContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+          <Ionicons name="search-outline" size={17} color={dark ? '#7CB0FF' : '#9AA3B2'} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, dark && { color: '#F2F6FF' }]}
             placeholder="Search reviewers..."
-            placeholderTextColor="#9AA3B2"
+            placeholderTextColor={dark ? '#64748B' : '#9AA3B2'}
             value={search}
             onChangeText={setSearch}
             accessibilityLabel="Search reviewers"
           />
           {!!search && (
             <Pressable onPress={() => setSearch('')} accessibilityRole="button" accessibilityLabel="Clear search">
-              <Ionicons name="close-circle" size={18} color="#A1A8B3" />
+              <Ionicons name="close-circle" size={18} color={dark ? '#94A3B8' : '#A1A8B3'} />
             </Pressable>
           )}
         </View>
@@ -116,9 +116,21 @@ export default function ReviewersScreen() {
               onPress={() => setFilter(item)}
               accessibilityRole="button"
               accessibilityState={{ selected: filter === item }}
-              style={[styles.filterChip, filter === item && styles.filterChipSelected]}
+              style={[
+                styles.filterChip,
+                dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+                filter === item && (dark ? { backgroundColor: '#2563EB', borderColor: '#2563EB' } : styles.filterChipSelected),
+              ]}
             >
-              <Text style={[styles.filterText, filter === item && styles.filterTextSelected]}>{item}</Text>
+              <Text
+                style={[
+                  styles.filterText,
+                  dark && { color: '#AAB7CC' },
+                  filter === item && styles.filterTextSelected,
+                ]}
+              >
+                {item}
+              </Text>
             </Pressable>
           ))}
         </View>
@@ -128,8 +140,8 @@ export default function ReviewersScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         >
-          {loading && <Text style={styles.message}>Loading reviewers...</Text>}
-          {!!loadError && <Text style={styles.message}>Could not load reviewers: {loadError}</Text>}
+          {loading && <Text style={[styles.message, dark && { color: '#AAB7CC' }]}>Loading reviewers...</Text>}
+          {!!loadError && <Text style={[styles.message, dark && { color: '#FF8080' }]}>Could not load reviewers: {loadError}</Text>}
           {!loading && !loadError && filteredReviewers.map(reviewer => {
             const status = getStatus(reviewer);
             const isDone = status === 'Completed';
@@ -140,23 +152,57 @@ export default function ReviewersScreen() {
                 onPress={() => router.push(`/reviewer/${reviewer.reviewer_id}`)}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${reviewer.name}, ${reviewer.mastery} percent mastery`}
-                style={({ pressed }) => [styles.reviewerCard, pressed && styles.cardPressed]}
+                style={({ pressed }) => [
+                  styles.reviewerCard,
+                  dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+                  pressed && (dark ? { backgroundColor: '#1E2D44' } : styles.cardPressed),
+                ]}
               >
-                <View style={[styles.masteryRing, isDone && styles.masteryRingDone]}>
-                  <Text style={styles.masteryText}>{Math.round(reviewer.mastery)}%</Text>
+                <View
+                  style={[
+                    styles.masteryRing,
+                    dark && { backgroundColor: '#131C2D', borderColor: '#2563EB' },
+                    isDone && (dark ? { borderColor: '#475569' } : styles.masteryRingDone),
+                  ]}
+                >
+                  <Text style={[styles.masteryText, dark && { color: '#F2F6FF' }]}>
+                    {Math.round(reviewer.mastery)}%
+                  </Text>
                 </View>
                 <View style={styles.reviewerContent}>
-                  <Text style={styles.reviewerName} numberOfLines={1}>{reviewer.name}</Text>
-                  <Text style={styles.metadata} numberOfLines={1}>
+                  <Text style={[styles.reviewerName, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                    {reviewer.name}
+                  </Text>
+                  <Text style={[styles.metadata, dark && { color: '#94A3B8' }]} numberOfLines={1}>
                     {reviewer.subject} · {reviewer.card_count} {reviewer.card_count === 1 ? 'card' : 'cards'} · {quizCount} {quizCount === 1 ? 'quiz' : 'quizzes'}
                   </Text>
-                  <Text style={[styles.lastStudied, dark && { color: '#AAB7CC' }]} numberOfLines={1}>{getLastStudied(reviewer.last_studied)}</Text>
+                  <Text style={[styles.lastStudied, dark && { color: '#64748B' }]} numberOfLines={1}>
+                    {getLastStudied(reviewer.last_studied)}
+                  </Text>
                 </View>
                 <View style={styles.rightColumn}>
-                  <View style={[styles.statusPill, isDone ? styles.statusPillDone : styles.statusPillActive]}>
-                    <Text style={[styles.statusText, isDone && styles.statusTextDone]}>{isDone ? 'Done' : 'Active'}</Text>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      isDone
+                        ? dark
+                          ? { backgroundColor: '#25354D' }
+                          : styles.statusPillDone
+                        : dark
+                        ? { backgroundColor: '#1E3A8A' }
+                        : styles.statusPillActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusText,
+                        isDone && (dark ? { color: '#94A3B8' } : styles.statusTextDone),
+                      ]}
+                    >
+                      {isDone ? 'Done' : 'Active'}
+                    </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={17} color="#B9C7DA" />
+                  <Ionicons name="chevron-forward" size={17} color={dark ? '#64748B' : '#B9C7DA'} />
                 </View>
               </Pressable>
             );

@@ -456,11 +456,11 @@ export default function ReviewerDetailScreen() {
           ))
         ) : (
           <View style={[styles.emptyMaterials, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-            <View style={styles.emptyMaterialsIcon}>
+            <View style={[styles.emptyMaterialsIcon, dark && { backgroundColor: '#102544' }]}>
               <Ionicons
                 name="documents-outline"
                 size={31}
-                color="#2563EB"
+                color={dark ? '#7CB0FF' : '#2563EB'}
               />
             </View>
 
@@ -547,7 +547,7 @@ function ToolCard({
       <View
         style={[
           styles.toolIcon,
-          { backgroundColor: background },
+          { backgroundColor: dark ? '#102544' : background },
         ]}
       >
         <Ionicons
@@ -596,11 +596,11 @@ function MaterialCard({
         pressed && styles.pressed,
       ]}
     >
-      <View style={styles.materialIcon}>
+      <View style={[styles.materialIcon, dark && { backgroundColor: '#102544' }]}>
         <Ionicons
           name={icon}
           size={21}
-          color="#2563EB"
+          color={dark ? '#7CB0FF' : '#2563EB'}
         />
       </View>
 
