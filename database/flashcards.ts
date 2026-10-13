@@ -31,6 +31,26 @@ export async function getFlashcardsByReviewer(reviewerId: string): Promise<SQLit
   );
 }
 
+export type FlashcardDeck = {
+  material_id: string;
+  title: string;
+  card_count: number;
+  created_at: string;
+};
+
+export async function getFlashcardDecksByReviewer(reviewerId: string): Promise<FlashcardDeck[]> {
+  const db = await getDatabase();
+  return db.getAllAsync<FlashcardDeck>(
+    `SELECT m.material_id, m.title, m.created_at, COUNT(f.flashcard_id) as card_count
+     FROM materials m
+     LEFT JOIN flashcards f ON f.material_id = m.material_id AND f.deleted_at IS NULL
+     WHERE m.reviewer_id = ? AND m.type = 'Flashcards' AND m.deleted_at IS NULL
+     GROUP BY m.material_id
+     ORDER BY m.created_at DESC`,
+    reviewerId
+  );
+}
+
 export async function saveFlashcards(materialId: string, cards: FlashcardInput[]): Promise<string[]> {
   const db = await getDatabase();
   const createdIds: string[] = [];

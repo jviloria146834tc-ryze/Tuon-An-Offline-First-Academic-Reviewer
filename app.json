@@ -16,7 +16,13 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.anonymous.Tuon"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -43,6 +49,17 @@
           "cameraPermission": "The app needs access to your camera to capture study notes and materials."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {
+        "headers": {
+          "Cross-Origin-Embedder-Policy": "credentialless",
+          "Cross-Origin-Opener-Policy": "same-origin"
+        }
+      },
+      "eas": {
+        "projectId": "fb317a05-971d-41bf-b806-cca967fb2830"
+      }
+    }
   }
 }

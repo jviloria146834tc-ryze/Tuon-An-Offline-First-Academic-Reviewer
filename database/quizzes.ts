@@ -49,6 +49,17 @@ export async function getQuizzesByMaterial(materialId: string): Promise<SQLiteQu
   );
 }
 
+export async function getQuizzesByReviewer(reviewerId: string): Promise<SQLiteQuiz[]> {
+  const db = await getDatabase();
+  return db.getAllAsync<SQLiteQuiz>(
+    `SELECT q.* FROM quizzes q 
+     JOIN materials m ON m.material_id = q.material_id 
+     WHERE m.reviewer_id = ? AND q.deleted_at IS NULL AND m.deleted_at IS NULL 
+     ORDER BY q.created_at DESC`,
+    reviewerId
+  );
+}
+
 export async function getQuizQuestions(quizId: string): Promise<SQLiteQuizQuestion[]> {
   const db = await getDatabase();
   return db.getAllAsync<SQLiteQuizQuestion>(

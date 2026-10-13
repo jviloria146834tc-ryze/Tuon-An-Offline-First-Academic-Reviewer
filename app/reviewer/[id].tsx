@@ -53,7 +53,14 @@ export default function ReviewerDetailScreen() {
         const reviewerData = await getReviewerById(reviewerId);
         if (!active) return;
         setReviewer(reviewerData);
-        setMaterials(reviewerData ? await getMaterialsByReviewer(reviewerId) : []);
+        if (reviewerData) {
+          const allMats = await getMaterialsByReviewer(reviewerId);
+          // Keep only actual source materials (notes, documents, captures, etc.)
+          const sourceOnly = allMats.filter(m => m.type !== 'Quiz' && m.type !== 'Flashcards');
+          setMaterials(sourceOnly);
+        } else {
+          setMaterials([]);
+        }
       } catch (error) {
         if (!active) return;
         setLoadError(error instanceof Error ? error.message : 'Could not load reviewer data.');
@@ -612,18 +619,6 @@ function MaterialCard({
       </View>
 
       <View style={styles.materialRight}>
-        {mastery !== undefined && (
-          <View style={styles.masteryContainer}>
-            <Text style={styles.masteryNumber}>
-              {mastery}%
-            </Text>
-
-            <Text style={[styles.masteryLabel, dark && { color: '#AAB7CC' }]}>
-              mastery
-            </Text>
-          </View>
-        )}
-
         <Ionicons
           name="chevron-forward"
           size={18}

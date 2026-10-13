@@ -180,6 +180,32 @@ export async function initializeDatabase(): Promise<void> {
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS study_reminders (
+          reminder_id TEXT PRIMARY KEY NOT NULL,
+          reviewer_id TEXT,
+          title TEXT NOT NULL,
+          selected_days TEXT,
+          selected_time TEXT NOT NULL,
+          hour INTEGER,
+          minute INTEGER,
+          is_enabled INTEGER NOT NULL DEFAULT 1,
+          mention_flashcards INTEGER NOT NULL DEFAULT 1,
+          notification_ids TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (reviewer_id) REFERENCES reviewers(reviewer_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS notifications_history (
+          history_id TEXT PRIMARY KEY NOT NULL,
+          reviewer_id TEXT,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL,
+          scheduled_time TEXT,
+          finished_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          status TEXT NOT NULL DEFAULT 'completed'
+        );
+
         CREATE INDEX IF NOT EXISTS idx_reviewers_student ON reviewers(student_id);
         CREATE INDEX IF NOT EXISTS idx_materials_reviewer ON materials(reviewer_id);
         CREATE INDEX IF NOT EXISTS idx_flashcards_material ON flashcards(material_id);
@@ -187,6 +213,8 @@ export async function initializeDatabase(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_attempts_quiz ON quiz_attempts(quiz_id);
         CREATE INDEX IF NOT EXISTS idx_sessions_reviewer ON study_sessions(reviewer_id);
         CREATE INDEX IF NOT EXISTS idx_mutation_queue_created ON mutation_queue(created_at);
+        CREATE INDEX IF NOT EXISTS idx_reminders_reviewer ON study_reminders(reviewer_id);
+        CREATE INDEX IF NOT EXISTS idx_history_finished ON notifications_history(finished_at);
       `);
 
       // Additive column migrations to support existing databases
@@ -212,6 +240,9 @@ export async function initializeDatabase(): Promise<void> {
       await ensureColumn(db, 'quick_captures', 'updated_at', 'TEXT');
       await ensureColumn(db, 'quick_captures', 'images', 'TEXT');
       await ensureColumn(db, 'materials', 'attachments', 'TEXT');
+      await ensureColumn(db, 'study_reminders', 'hour', 'INTEGER');
+      await ensureColumn(db, 'study_reminders', 'minute', 'INTEGER');
+      await ensureColumn(db, 'study_reminders', 'notification_ids', 'TEXT');
 
       await db.execAsync(`PRAGMA user_version = ${DATABASE_VERSION}`);
     })().catch(error => {

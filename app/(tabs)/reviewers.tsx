@@ -83,12 +83,12 @@ export default function ReviewersScreen() {
             <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Reviewers</Text>
           </View>
           <Pressable
-            style={styles.profileButton}
-            onPress={() => router.push('/(tabs)/settings')}
+            style={[styles.profileButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+            onPress={() => router.push('/notifications')}
             accessibilityRole="button"
-            accessibilityLabel="Open settings"
+            accessibilityLabel="Open notifications"
           >
-            <Ionicons name="person-outline" size={21} color="#102A68" />
+            <Ionicons name="notifications-outline" size={21} color={dark ? '#7CB0FF' : '#102A68'} />
           </Pressable>
         </View>
 
@@ -133,6 +133,7 @@ export default function ReviewersScreen() {
           {!loading && !loadError && filteredReviewers.map(reviewer => {
             const status = getStatus(reviewer);
             const isDone = status === 'Completed';
+            const quizCount = reviewer.quiz_count ?? 0;
             return (
               <Pressable
                 key={reviewer.reviewer_id}
@@ -147,7 +148,7 @@ export default function ReviewersScreen() {
                 <View style={styles.reviewerContent}>
                   <Text style={styles.reviewerName} numberOfLines={1}>{reviewer.name}</Text>
                   <Text style={styles.metadata} numberOfLines={1}>
-                    {reviewer.subject} | {reviewer.card_count} {reviewer.card_count === 1 ? 'card' : 'cards'}
+                    {reviewer.subject} · {reviewer.card_count} {reviewer.card_count === 1 ? 'card' : 'cards'} · {quizCount} {quizCount === 1 ? 'quiz' : 'quizzes'}
                   </Text>
                   <Text style={[styles.lastStudied, dark && { color: '#AAB7CC' }]} numberOfLines={1}>{getLastStudied(reviewer.last_studied)}</Text>
                 </View>

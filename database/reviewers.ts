@@ -12,6 +12,7 @@ export type SQLiteReviewer = {
   mastery: number;
   due_cards: number;
   card_count: number;
+  quiz_count?: number;
   last_studied: string | null;
   is_archived?: number;
   created_at?: string;
@@ -41,6 +42,8 @@ export async function getReviewers(): Promise<SQLiteReviewer[]> {
           AND (s.flashcard_id IS NULL OR s.next_review_date IS NULL OR date(s.next_review_date) <= date('now','localtime'))) AS due_cards
        ,(SELECT COUNT(*) FROM materials m JOIN flashcards f ON f.material_id = m.material_id
          WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND f.deleted_at IS NULL) AS card_count
+       ,(SELECT COUNT(*) FROM materials m JOIN quizzes q ON q.material_id = m.material_id
+         WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND q.deleted_at IS NULL) AS quiz_count
        ,(SELECT MAX(s.last_reviewed_at) FROM materials m JOIN flashcards f ON f.material_id = m.material_id
          JOIN srs_progress s ON s.flashcard_id = f.flashcard_id
          WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND f.deleted_at IS NULL) AS last_studied
@@ -64,6 +67,8 @@ export async function getReviewerById(id: string): Promise<SQLiteReviewer | null
           AND (s.flashcard_id IS NULL OR s.next_review_date IS NULL OR date(s.next_review_date) <= date('now','localtime'))) AS due_cards
        ,(SELECT COUNT(*) FROM materials m JOIN flashcards f ON f.material_id = m.material_id
          WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND f.deleted_at IS NULL) AS card_count
+       ,(SELECT COUNT(*) FROM materials m JOIN quizzes q ON q.material_id = m.material_id
+         WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND q.deleted_at IS NULL) AS quiz_count
        ,(SELECT MAX(s.last_reviewed_at) FROM materials m JOIN flashcards f ON f.material_id = m.material_id
          JOIN srs_progress s ON s.flashcard_id = f.flashcard_id
          WHERE m.reviewer_id = r.reviewer_id AND m.deleted_at IS NULL AND f.deleted_at IS NULL) AS last_studied

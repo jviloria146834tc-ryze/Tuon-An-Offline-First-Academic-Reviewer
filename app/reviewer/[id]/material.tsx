@@ -398,7 +398,18 @@ export default function AddMaterialScreen() {
           {materialId ? 'Edit Study Material' : 'Add Study Material'}
         </Text>
 
-        <View style={styles.placeholder} />
+        {materialId ? (
+          <Pressable
+            style={styles.headerDeleteButton}
+            onPress={confirmDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Delete material"
+          >
+            <Ionicons name="trash-outline" size={22} color="#EF4444" />
+          </Pressable>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -562,8 +573,17 @@ export default function AddMaterialScreen() {
         </View>
 
         {materialId && (
-          <Pressable onPress={confirmDelete} style={styles.deleteButton} accessibilityRole="button">
-            <Text style={styles.deleteButtonText}>DELETE MATERIAL</Text>
+          <Pressable
+            onPress={confirmDelete}
+            style={({ pressed }) => [
+              styles.deleteButtonCard,
+              dark && { backgroundColor: '#1F1315', borderColor: '#4C1D24' },
+              pressed && styles.buttonPressed,
+            ]}
+            accessibilityRole="button"
+          >
+            <Ionicons name="trash-outline" size={19} color="#EF4444" style={{ marginRight: 8 }} />
+            <Text style={styles.deleteButtonCardText}>DELETE THIS MATERIAL</Text>
           </Pressable>
         )}
       </ScrollView>
@@ -961,15 +981,30 @@ const styles = StyleSheet.create({
     color: '#8C7B3E',
     marginTop: 2,
   },
-  deleteButton: {
-    padding: 16,
+  headerDeleteButton: {
+    width: 42,
+    height: 42,
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'center',
+    borderRadius: 12,
   },
-  deleteButtonText: {
-    color: '#D9534F',
+  deleteButtonCard: {
+    minHeight: 52,
+    backgroundColor: '#FFF1F2',
+    borderWidth: 2,
+    borderColor: '#FECDD3',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
+    marginBottom: 10,
+    paddingHorizontal: 16,
+  },
+  deleteButtonCardText: {
+    color: '#EF4444',
     fontWeight: '900',
-    fontSize: 13,
+    fontSize: 14,
     letterSpacing: 0.6,
   },
   bottom: {

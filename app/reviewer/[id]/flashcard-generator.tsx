@@ -1,15 +1,16 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { createMaterial, getMaterialsByReviewer, SQLiteMaterial } from '../../../database/materials';
-import { saveFlashcards, FlashcardInput } from '../../../database/flashcards';
+import { saveFlashcards, getFlashcardDecksByReviewer, FlashcardDeck, FlashcardInput } from '../../../database/flashcards';
 import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
 import { extractFlashcardsWithGemini } from '../../../utils/gemini';
 
-const CARD_COUNTS = [5, 10, 15, 20, 30, 50] as const;
+const CARD_COUNTS = [5, 10, 15, 20, 30] as const;
+type TabType = 'generate' | 'decks';
 type ExtractionMode = 'auto' | 'manual';
 type DraftCard = FlashcardInput;
 
@@ -17,8 +18,11 @@ export default function FlashcardGeneratorScreen() {
   const { dark } = useAppTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const reviewerId = Array.isArray(id) ? id[0] : id;
+
+  const [activeTab, setActiveTab] = useState<TabType>('generate');
   const [reviewer, setReviewer] = useState<SQLiteReviewer | null>(null);
   const [materials, setMaterials] = useState<SQLiteMaterial[]>([]);
+  const [existingDecks, setExistingDecks] = useState<FlashcardDeck[]>([]);
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
   const [deckName, setDeckName] = useState('');
   const [mode, setMode] = useState<ExtractionMode>('auto');
@@ -30,27 +34,47 @@ export default function FlashcardGeneratorScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    Promise.all([getReviewerById(reviewerId ?? ''), getMaterialsByReviewer(reviewerId ?? '')])
-      .then(([reviewerData, materialData]) => {
-        if (!active) return;
-        setReviewer(reviewerData);
-        const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
-        setMaterials(sourceItems);
-        setSelectedMaterials(sourceItems.map(item => item.material_id));
-      })
-      .catch(error => Alert.alert('Could not load source materials', error instanceof Error ? error.message : 'Please try again.'))
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [reviewerId]);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const loadData = async () => {
+        if (!reviewerId) return;
+        try {
+          const [reviewerData, materialData, deckData] = await Promise.all([
+            getReviewerById(reviewerId),
+            getMaterialsByReviewer(reviewerId),
+            getFlashcardDecksByReviewer(reviewerId),
+          ]);
+          if (!active) return;
+          setReviewer(reviewerData);
+          const sourceItems = materialData.filter(item => item.type !== 'Quiz' && item.type !== 'Flashcards');
+          setMaterials(sourceItems);
+          setSelectedMaterials(sourceItems.map(item => item.material_id));
+          setExistingDecks(deckData);
+        } catch (error) {
+          if (!active) return;
+          Alert.alert('Error loading flashcard data', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+          if (active) setLoading(false);
+        }
+      };
 
-  const selectedItems = useMemo(() => materials.filter(item => selectedMaterials.includes(item.material_id)), [materials, selectedMaterials]);
+      void loadData();
+      return () => {
+        active = false;
+      };
+    }, [reviewerId])
+  );
+
+  const selectedItems = useMemo(
+    () => materials.filter(item => selectedMaterials.includes(item.material_id)),
+    [materials, selectedMaterials]
+  );
 
   const toggleMaterial = (materialId: string) => {
-    setSelectedMaterials(current => current.includes(materialId)
-      ? current.filter(idValue => idValue !== materialId)
-      : [...current, materialId]);
+    setSelectedMaterials(current =>
+      current.includes(materialId) ? current.filter(id => id !== materialId) : [...current, materialId]
+    );
   };
 
   const addDraftCard = () => {
@@ -62,7 +86,7 @@ export default function FlashcardGeneratorScreen() {
 
   const extractWithAI = async () => {
     if (selectedItems.length === 0) {
-      Alert.alert('No materials selected', 'Please select at least one study material from the list below to extract flashcards from.');
+      Alert.alert('No materials selected', 'Please select at least one study note or material to extract cards from.');
       return;
     }
     const aggregatedContent = selectedItems.map(item => `${item.title}:\n${item.content}`).join('\n\n');
@@ -74,9 +98,9 @@ export default function FlashcardGeneratorScreen() {
         return;
       }
       setDraftCards(extracted);
-      Alert.alert('Extraction complete', `Generated ${extracted.length} flashcards! Review them below and tap Save to store the deck.`);
+      Alert.alert('Extraction complete', `Generated ${extracted.length} flashcards! Review them below and tap Save Deck.`);
     } catch (error) {
-      Alert.alert('Gemini extraction failed', error instanceof Error ? error.message : 'Please check your internet connection and API key.');
+      Alert.alert('Extraction error', error instanceof Error ? error.message : 'Please check your connection and API key.');
     } finally {
       setSaving(false);
     }
@@ -89,13 +113,13 @@ export default function FlashcardGeneratorScreen() {
     }
 
     if (!reviewerId || draftCards.length === 0 || saving) {
-      Alert.alert('No cards to save', 'Please add or extract flashcards first.');
+      Alert.alert('No cards to save', 'Please add or generate flashcards first.');
       return;
     }
 
     setSaving(true);
     try {
-      const title = deckName.trim() || 'My Flashcards';
+      const title = deckName.trim() || `${reviewer?.name ?? 'Study'} Flashcards`;
       const materialId = await createMaterial({
         reviewer_id: reviewerId,
         title,
@@ -104,7 +128,25 @@ export default function FlashcardGeneratorScreen() {
         content: JSON.stringify({ source_material_ids: selectedMaterials }),
       });
       await saveFlashcards(materialId, draftCards);
-      router.replace(`/reviewer/${reviewerId}/flashcards`);
+      await loadData();
+
+      Alert.alert('Deck Saved!', `Successfully saved "${title}" with ${draftCards.length} flashcards.`, [
+        {
+          text: 'View Decks',
+          style: 'cancel',
+          onPress: () => {
+            setDraftCards([]);
+            setActiveTab('decks');
+          },
+        },
+        {
+          text: 'Study Now',
+          onPress: () => {
+            setDraftCards([]);
+            router.push(`/reviewer/${reviewerId}/flashcards?materialId=${materialId}`);
+          },
+        },
+      ]);
     } catch (error) {
       Alert.alert('Could not save flashcard deck', error instanceof Error ? error.message : 'Please try again.');
     } finally {
@@ -112,188 +154,839 @@ export default function FlashcardGeneratorScreen() {
     }
   };
 
-  const visibleCards = showAll ? draftCards : draftCards.slice(0, 3);
+  const visibleCards = showAll ? draftCards : draftCards.slice(0, 4);
 
   return (
-    <SafeAreaView style={[styles.safe, dark && { backgroundColor: '#0B1220' }]}>
-      <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
-        <Pressable style={styles.backButton} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="chevron-back" size={22} color={dark ? '#F2F6FF' : '#4B5E7E'} />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safe, dark && { backgroundColor: '#0B1220' }]}>
+      {/* HEADER */}
+      <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#1E293B' }]}>
+        <Pressable
+          style={[styles.backButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
+          <Ionicons name="chevron-back" size={24} color={dark ? '#F2F6FF' : '#15264B'} />
         </Pressable>
         <View style={styles.headerCopy}>
-          <Text style={[styles.headerTitle, dark && { color: '#F2F6FF' }]}>Generate Flashcards</Text>
-          <Text style={styles.headerSubtitle}>{reviewer?.subject ?? reviewer?.name ?? 'Reviewer'}</Text>
+          <Text style={[styles.headerTitle, dark && { color: '#F2F6FF' }]}>Flashcards</Text>
+          <Text style={[styles.headerSubtitle, dark && { color: '#94A3B8' }]} numberOfLines={1}>
+            {reviewer?.name ?? 'Reviewer'}
+          </Text>
         </View>
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={[styles.scroll, dark && { backgroundColor: '#0B1220' }]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>DECK NAME</Text>
-        <View style={[styles.deckInputWrap, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-          <TextInput style={[styles.deckInput, dark && { color: '#F2F6FF' }]} value={deckName} onChangeText={setDeckName} placeholder="Name your deck" placeholderTextColor="#8994A4" accessibilityLabel="Deck name" />
-          <Ionicons name="chevron-down" size={17} color="#8994A4" />
-        </View>
-
-        <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>EXTRACTION MODE</Text>
-        <View style={[styles.modeSwitch, dark && { backgroundColor: '#111B2B' }]}>
-          <Pressable style={[styles.modeOption, dark && { backgroundColor: '#172235' }, mode === 'auto' && styles.modeOptionSelected, dark && mode === 'auto' && { backgroundColor: '#2563EB', borderColor: '#2563EB' }]} onPress={() => setMode('auto')} accessibilityRole="button" accessibilityState={{ selected: mode === 'auto' }}>
-            <Text style={[styles.modeText, dark && { color: '#AAB7CC' }, mode === 'auto' && styles.modeTextSelected, dark && mode === 'auto' && { color: '#FFFFFF' }]}>Auto-Extract</Text>
-          </Pressable>
-          <Pressable style={[styles.modeOption, dark && { backgroundColor: '#172235' }, mode === 'manual' && styles.modeOptionSelected, dark && mode === 'manual' && { backgroundColor: '#2563EB', borderColor: '#2563EB' }]} onPress={() => setMode('manual')} accessibilityRole="button" accessibilityState={{ selected: mode === 'manual' }}>
-            <Text style={[styles.modeText, dark && { color: '#AAB7CC' }, mode === 'manual' && styles.modeTextSelected, dark && mode === 'manual' && { color: '#FFFFFF' }]}>Manual Entry</Text>
-          </Pressable>
-        </View>
-
-        <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>SOURCE MATERIALS</Text>
-        <View style={[styles.materialList, dark && { backgroundColor: '#111B2B' }]}>
-          {loading ? <Text style={styles.emptyText}>Loading materials...</Text> : materials.length === 0 ? (
-            <Text style={styles.emptyText}>No saved study materials in this reviewer yet.</Text>
-          ) : materials.map(material => {
-            const checked = selectedMaterials.includes(material.material_id);
-            return (
-              <Pressable key={material.material_id} style={[styles.materialRow, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => toggleMaterial(material.material_id)} accessibilityRole="checkbox" accessibilityState={{ checked }}>
-                <Ionicons name={checked ? 'checkbox' : 'square-outline'} size={17} color={checked ? '#102A68' : '#B9C7DA'} />
-                <Text style={[styles.materialName, dark && { color: '#F2F6FF' }]} numberOfLines={1}>{material.title}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.countHeader}>
-          <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>NUMBER OF FLASHCARDS</Text>
-          <Text style={[styles.countValue, dark && { color: '#F2F6FF' }]}>{mode === 'manual' ? draftCards.length : cardCount}</Text>
-        </View>
-        <View style={styles.countRow}>
-          {CARD_COUNTS.map(count => (
-            <Pressable key={count} onPress={() => setCardCount(count)} accessibilityRole="button" accessibilityState={{ selected: cardCount === count }} style={[styles.countButton, dark && { backgroundColor: '#172235' }, cardCount === count && styles.countButtonSelected]}>
-              <Text style={[styles.countText, dark && { color: '#AAB7CC' }, cardCount === count && styles.countTextSelected]}>{count}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {mode === 'manual' && (
-          <View style={[styles.manualForm, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
-            <View style={styles.previewHeader}>
-              <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>ADD A TERM AND DEFINITION</Text>
-              <Text style={[styles.previewCount, dark && { color: '#AAB7CC' }]}>{draftCards.length} added</Text>
-            </View>
-            <TextInput style={[styles.textInput, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]} value={term} onChangeText={setTerm} placeholder="Term or question" placeholderTextColor="#9AA3B2" accessibilityLabel="Flashcard term or question" />
-            <TextInput style={[styles.textInput, styles.definitionInput, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]} value={definition} onChangeText={setDefinition} placeholder="Definition or answer" placeholderTextColor="#9AA3B2" multiline textAlignVertical="top" accessibilityLabel="Flashcard definition or answer" />
-            <Pressable style={[styles.addCardButton, (!term.trim() || !definition.trim()) && styles.disabled]} onPress={addDraftCard} disabled={!term.trim() || !definition.trim()} accessibilityRole="button">
-              <Ionicons name="add" size={17} color="#102A68" />
-              <Text style={[styles.addCardText, dark && { color: '#F2F6FF' }]}>ADD CARD</Text>
-            </Pressable>
-          </View>
-        )}
-
-        <View style={styles.previewHeading}>
-          <Text style={[styles.fieldLabel, dark && { color: '#AAB7CC' }]}>{mode === 'auto' ? 'PREVIEW Â· 0 EXTRACTED PAIRS' : `PREVIEW Â· ${draftCards.length} ${draftCards.length === 1 ? 'PAIR' : 'PAIRS'}`}</Text>
-          {draftCards.length > 3 && (
-            <Pressable onPress={() => setShowAll(value => !value)} accessibilityRole="button">
-              <Text style={styles.editAll}>{showAll ? 'Show less' : 'See all'}</Text>
-            </Pressable>
-          )}
-        </View>
-
-        {draftCards.length === 0 ? (
-          <View style={[styles.emptyPreview, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
-            <Ionicons name={mode === 'auto' ? 'sparkles-outline' : 'albums-outline'} size={22} color="#8490A3" />
-            <Text style={[styles.emptyPreviewTitle, dark && { color: '#F2F6FF' }]}>
-              {mode === 'auto' ? 'No cards extracted yet' : 'Your preview will appear here'}
-            </Text>
-            <Text style={[styles.emptyPreviewText, dark && { color: '#AAB7CC' }]}>
-              {mode === 'auto'
-                ? 'Select your source materials and tap "Generate with Gemini" below to automatically extract cards.'
-                : 'Add a term and definition above to start a real flashcard deck.'}
-            </Text>
-          </View>
-        ) : visibleCards.map((card, index) => (
-          <View key={`${card.question}-${index}`} style={[styles.previewCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-            <Text style={styles.previewMiniLabel}>TERM</Text>
-            <Text style={[styles.previewTerm, dark && { color: '#F2F6FF' }]}>{card.question}</Text>
-            <View style={styles.previewDivider} />
-            <Text style={styles.previewMiniLabel}>DEFINITION</Text>
-            <Text style={[styles.previewDefinition, dark && { color: '#CBD5E1' }]}>{card.answer}</Text>
-            <Pressable style={styles.removeCard} onPress={() => setDraftCards(current => current.filter((_, cardIndex) => cardIndex !== index))} accessibilityRole="button" accessibilityLabel={`Remove card ${index + 1}`}>
-              <Ionicons name="close-circle-outline" size={17} color="#98A2B3" />
-            </Pressable>
-          </View>
-        ))}
-      </ScrollView>
-
-      <View style={[styles.footer, dark && { backgroundColor: '#111B2B', borderTopColor: '#2B3A52' }]}>
-        <Pressable style={[styles.previewButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }, draftCards.length === 0 && styles.previewButtonDisabled]} disabled={draftCards.length === 0} onPress={() => setShowAll(true)} accessibilityRole="button">
-          <Text style={[styles.previewButtonText, dark && { color: '#F2F6FF' }, draftCards.length === 0 && styles.previewButtonTextDisabled]}>Preview All</Text>
+      {/* TOP TABS */}
+      <View style={[styles.tabBar, dark && { backgroundColor: '#111B2B', borderBottomColor: '#1E293B' }]}>
+        <Pressable
+          style={[styles.tabItem, activeTab === 'generate' && styles.tabItemActive]}
+          onPress={() => setActiveTab('generate')}
+        >
+          <Ionicons
+            name="sparkles-outline"
+            size={18}
+            color={activeTab === 'generate' ? '#2563EB' : dark ? '#64748B' : '#94A3B8'}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              dark && { color: '#64748B' },
+              activeTab === 'generate' && styles.tabTextActive,
+            ]}
+          >
+            Create / Extract
+          </Text>
         </Pressable>
-        <Pressable style={[styles.saveButton, saving && styles.disabled]} onPress={saveDeck} disabled={saving} accessibilityRole="button">
-          <Text style={styles.saveButtonText} numberOfLines={1}>
-            {saving
-              ? (mode === 'auto' && draftCards.length === 0 ? 'Extracting with Gemini...' : 'Saving...')
-              : mode === 'auto' && draftCards.length === 0
-                ? `Generate ${cardCount} Cards`
-                : `Save ${draftCards.length}-Card Deck`}
+
+        <Pressable
+          style={[styles.tabItem, activeTab === 'decks' && styles.tabItemActive]}
+          onPress={() => setActiveTab('decks')}
+        >
+          <Ionicons
+            name="albums-outline"
+            size={18}
+            color={activeTab === 'decks' ? '#2563EB' : dark ? '#64748B' : '#94A3B8'}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              dark && { color: '#64748B' },
+              activeTab === 'decks' && styles.tabTextActive,
+            ]}
+          >
+            Saved Decks ({existingDecks.length})
           </Text>
         </Pressable>
       </View>
+
+      {activeTab === 'generate' ? (
+        <>
+          <ScrollView
+            style={[styles.scroll, dark && { backgroundColor: '#0B1220' }]}
+            contentContainerStyle={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* DECK NAME */}
+            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>DECK NAME</Text>
+            <View style={[styles.deckInputWrap, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+              <Ionicons name="bookmark-outline" size={20} color="#94A3B8" style={{ marginRight: 10 }} />
+              <TextInput
+                style={[styles.deckInput, dark && { color: '#F2F6FF' }]}
+                value={deckName}
+                onChangeText={setDeckName}
+                placeholder="e.g. Chapter 1 Key Concepts"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+
+            {/* EXTRACTION MODE */}
+            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>CREATION MODE</Text>
+            <View style={[styles.modeSwitch, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+              <Pressable
+                style={[styles.modeOption, mode === 'auto' && styles.modeOptionSelected]}
+                onPress={() => setMode('auto')}
+              >
+                <Ionicons
+                  name="sparkles"
+                  size={16}
+                  color={mode === 'auto' ? '#FFFFFF' : '#94A3B8'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.modeText, mode === 'auto' && styles.modeTextSelected]}>
+                  AI Auto-Extract
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modeOption, mode === 'manual' && styles.modeOptionSelected]}
+                onPress={() => setMode('manual')}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={16}
+                  color={mode === 'manual' ? '#FFFFFF' : '#94A3B8'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.modeText, mode === 'manual' && styles.modeTextSelected]}>
+                  Manual Entry
+                </Text>
+              </Pressable>
+            </View>
+
+            {mode === 'auto' && (
+              <>
+                {/* SOURCE MATERIALS */}
+                <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>SOURCE MATERIALS</Text>
+                <View style={[styles.materialList, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+                  {loading ? (
+                    <Text style={styles.emptyText}>Loading materials...</Text>
+                  ) : materials.length === 0 ? (
+                    <Text style={styles.emptyText}>No saved study materials in this reviewer yet.</Text>
+                  ) : (
+                    materials.map(material => {
+                      const checked = selectedMaterials.includes(material.material_id);
+                      return (
+                        <Pressable
+                          key={material.material_id}
+                          style={[
+                            styles.materialRow,
+                            dark && { backgroundColor: '#0F172A', borderColor: '#1E293B' },
+                            checked && styles.materialRowChecked,
+                          ]}
+                          onPress={() => toggleMaterial(material.material_id)}
+                        >
+                          <Ionicons
+                            name={checked ? 'checkbox' : 'square-outline'}
+                            size={20}
+                            color={checked ? '#2563EB' : '#94A3B8'}
+                          />
+                          <Text style={[styles.materialName, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                            {material.title}
+                          </Text>
+                        </Pressable>
+                      );
+                    })
+                  )}
+                </View>
+
+                {/* NUMBER OF CARDS */}
+                <View style={styles.countHeader}>
+                  <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>NUMBER OF CARDS</Text>
+                  <Text style={[styles.countValue, dark && { color: '#7CB0FF' }]}>{cardCount} Cards</Text>
+                </View>
+                <View style={styles.countRow}>
+                  {CARD_COUNTS.map(count => (
+                    <Pressable
+                      key={count}
+                      onPress={() => setCardCount(count)}
+                      style={[
+                        styles.countButton,
+                        dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+                        cardCount === count && styles.countButtonSelected,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.countText,
+                          dark && { color: '#94A3B8' },
+                          cardCount === count && styles.countTextSelected,
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {mode === 'manual' && (
+              <View style={[styles.manualForm, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+                <View style={styles.previewHeaderRow}>
+                  <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>NEW CARD</Text>
+                  <Text style={[styles.previewCount, dark && { color: '#94A3B8' }]}>
+                    {draftCards.length} cards added
+                  </Text>
+                </View>
+                <TextInput
+                  style={[styles.textInput, dark && { backgroundColor: '#0F172A', borderColor: '#1E293B', color: '#F2F6FF' }]}
+                  value={term}
+                  onChangeText={setTerm}
+                  placeholder="Front: Term or Question"
+                  placeholderTextColor="#94A3B8"
+                />
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    styles.definitionInput,
+                    dark && { backgroundColor: '#0F172A', borderColor: '#1E293B', color: '#F2F6FF' },
+                  ]}
+                  value={definition}
+                  onChangeText={setDefinition}
+                  placeholder="Back: Definition or Answer"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  textAlignVertical="top"
+                />
+                <Pressable
+                  style={[
+                    styles.addCardButton,
+                    (!term.trim() || !definition.trim()) && styles.disabled,
+                  ]}
+                  onPress={addDraftCard}
+                  disabled={!term.trim() || !definition.trim()}
+                >
+                  <Ionicons name="add" size={20} color="#2563EB" />
+                  <Text style={styles.addCardText}>ADD TO DECK</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* PREVIEW CARDS */}
+            <View style={styles.previewHeading}>
+              <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>
+                {`CARDS IN DECK (${draftCards.length})`}
+              </Text>
+              {draftCards.length > 4 && (
+                <Pressable onPress={() => setShowAll(v => !v)}>
+                  <Text style={styles.editAll}>{showAll ? 'Show less' : 'View all'}</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {draftCards.length === 0 ? (
+              <View style={[styles.emptyPreview, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+                <Ionicons
+                  name={mode === 'auto' ? 'sparkles-outline' : 'albums-outline'}
+                  size={32}
+                  color="#2563EB"
+                />
+                <Text style={[styles.emptyPreviewTitle, dark && { color: '#F2F6FF' }]}>
+                  {mode === 'auto' ? 'No cards extracted yet' : 'Deck is currently empty'}
+                </Text>
+                <Text style={[styles.emptyPreviewText, dark && { color: '#94A3B8' }]}>
+                  {mode === 'auto'
+                    ? 'Select your source notes and tap "Generate Flashcards" below.'
+                    : 'Fill in the term and definition above to add cards to this deck.'}
+                </Text>
+              </View>
+            ) : (
+              visibleCards.map((card, index) => (
+                <View
+                  key={`${card.question}-${index}`}
+                  style={[styles.previewCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+                >
+                  <Text style={styles.previewMiniLabel}>FRONT</Text>
+                  <Text style={[styles.previewTerm, dark && { color: '#F2F6FF' }]}>{card.question}</Text>
+                  <View style={styles.previewDivider} />
+                  <Text style={styles.previewMiniLabel}>BACK</Text>
+                  <Text style={[styles.previewDefinition, dark && { color: '#CBD5E1' }]}>{card.answer}</Text>
+                  <Pressable
+                    style={styles.removeCard}
+                    onPress={() => setDraftCards(curr => curr.filter((_, i) => i !== index))}
+                    hitSlop={10}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  </Pressable>
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          {/* FOOTER */}
+          <View style={[styles.footer, dark && { backgroundColor: '#111B2B', borderTopColor: '#1E293B' }]}>
+            <Pressable
+              style={[
+                styles.saveButton,
+                saving && styles.disabled,
+                mode === 'auto' && selectedItems.length === 0 && styles.disabled,
+              ]}
+              onPress={saveDeck}
+              disabled={saving || (mode === 'auto' && selectedItems.length === 0)}
+            >
+              <Ionicons
+                name={mode === 'auto' && draftCards.length === 0 ? 'sparkles' : 'save-outline'}
+                size={20}
+                color="#FFFFFF"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.saveButtonText}>
+                {saving
+                  ? (mode === 'auto' && draftCards.length === 0 ? 'Extracting with Gemini...' : 'Saving Deck...')
+                  : mode === 'auto' && draftCards.length === 0
+                  ? `Extract ${cardCount} Flashcards`
+                  : `Save ${draftCards.length}-Card Deck`}
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      ) : (
+        /* SAVED DECKS LIST */
+        <ScrollView
+          style={[styles.scroll, dark && { backgroundColor: '#0B1220' }]}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>
+              SAVED DECKS ({existingDecks.length})
+            </Text>
+            <Pressable onPress={() => setActiveTab('generate')} hitSlop={10}>
+              <Text style={styles.sectionActionText}>+ New Deck</Text>
+            </Pressable>
+          </View>
+
+          {existingDecks.length > 0 ? (
+            existingDecks.map(item => (
+              <Pressable
+                key={item.material_id}
+                style={({ pressed }) => [
+                  styles.deckCard,
+                  dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => {
+                  router.push(`/reviewer/${reviewerId}/flashcards?materialId=${item.material_id}`);
+                }}
+              >
+                <View style={styles.deckCardIcon}>
+                  <Ionicons name="albums" size={24} color="#0087C4" />
+                </View>
+                <View style={styles.deckCardContent}>
+                  <Text style={[styles.deckCardTitle, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={[styles.deckCardSubtitle, dark && { color: '#94A3B8' }]}>
+                    {item.card_count} {item.card_count === 1 ? 'card' : 'cards'} · SRS Ready
+                  </Text>
+                </View>
+                <View style={styles.studyBadge}>
+                  <Text style={styles.studyBadgeText}>Study</Text>
+                  <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+                </View>
+              </Pressable>
+            ))
+          ) : (
+            <View style={[styles.emptyContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+              <View style={styles.emptyIconWrap}>
+                <Ionicons name="albums-outline" size={36} color="#0087C4" />
+              </View>
+              <Text style={[styles.emptyTitle, dark && { color: '#F2F6FF' }]}>No flashcard decks yet</Text>
+              <Text style={[styles.emptySubtitle, dark && { color: '#94A3B8' }]}>
+                Switch to the Create tab to extract cards with AI or build a custom deck.
+              </Text>
+              <Pressable style={styles.emptyActionBtn} onPress={() => setActiveTab('generate')}>
+                <Text style={styles.emptyActionText}>Create Flashcards</Text>
+              </Pressable>
+            </View>
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { minHeight: 57, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17, borderBottomWidth: 1, borderBottomColor: '#E3E7EC' },
-  backButton: { width: 28, height: 38, alignItems: 'flex-start', justifyContent: 'center' },
-  headerCopy: { flex: 1, marginLeft: 10 },
-  headerTitle: { color: '#102A68', fontSize: 14, fontWeight: '800' },
-  headerSubtitle: { color: '#8490A3', fontSize: 9, marginTop: 1 },
-  headerSpacer: { width: 25 },
-  scroll: { flex: 1 },
-  content: { width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 17, paddingTop: 12, paddingBottom: 15 },
-  fieldLabel: { color: '#8490A3', fontSize: 8, letterSpacing: 1.4, fontWeight: '800', marginTop: 13, marginBottom: 6 },
-  deckInputWrap: { minHeight: 37, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#D8DEE7', borderRadius: 10, paddingHorizontal: 11 },
-  deckInput: { flex: 1, color: '#20345C', fontSize: 11 },
-  modeSwitch: { minHeight: 36, flexDirection: 'row', alignItems: 'center', borderRadius: 11, backgroundColor: '#F0F2F5', padding: 3 },
-  modeOption: { flex: 1, minHeight: 29, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  modeOptionSelected: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DCE5F2' },
-  modeText: { color: '#8490A3', fontSize: 9, fontWeight: '700' },
-  modeTextSelected: { color: '#102A68' },
-  materialList: { gap: 5 },
-  materialRow: { minHeight: 30, flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, borderWidth: 1, borderColor: '#DCE5F2', backgroundColor: '#F8FAFE', paddingHorizontal: 9 },
-  materialName: { flex: 1, color: '#4B5E7E', fontSize: 9 },
-  emptyText: { color: '#8490A3', fontSize: 10, paddingVertical: 7 },
-  countHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  countValue: { color: '#20345C', fontSize: 11, fontWeight: '900' },
-  countRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 1 },
-  countButton: { minWidth: 31, height: 27, paddingHorizontal: 5, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  countButtonSelected: { backgroundColor: '#102A68' },
-  countText: { color: '#8490A3', fontSize: 9 },
-  countTextSelected: { color: '#FFFFFF', fontWeight: '900' },
-  manualForm: { borderWidth: 1, borderColor: '#DCE5F2', borderRadius: 12, backgroundColor: '#F8FAFE', padding: 10, marginTop: 6 },
-  previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  previewCount: { color: '#8490A3', fontSize: 9, marginTop: 8 },
-  textInput: { minHeight: 35, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DCE5F2', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 8, color: '#20345C', fontSize: 10, marginTop: 6 },
-  definitionInput: { minHeight: 59, textAlignVertical: 'top' },
-  addCardButton: { minHeight: 33, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, borderWidth: 1, borderColor: '#C7D6EA', borderRadius: 9, backgroundColor: '#FFFFFF', marginTop: 7 },
-  addCardText: { color: '#4B5E7E', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  disabled: { opacity: 0.5 },
-  previewHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  editAll: { color: '#6E7D97', fontSize: 9, marginTop: 7 },
-  emptyPreview: { minHeight: 94, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: '#D8DEE7', borderRadius: 12, backgroundColor: '#FAFBFC', paddingHorizontal: 18, paddingVertical: 13 },
-  emptyPreviewTitle: { color: '#4B5E7E', fontSize: 10, fontWeight: '800', marginTop: 6 },
-  emptyPreviewText: { color: '#8490A3', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 4 },
-  previewCard: { position: 'relative', borderWidth: 1, borderColor: '#DCE5F2', borderRadius: 12, backgroundColor: '#F8FAFE', padding: 10, marginBottom: 6 },
-  previewMiniLabel: { color: '#8490A3', fontSize: 7, letterSpacing: 1.1, fontWeight: '800' },
-  previewTerm: { color: '#20345C', fontSize: 10, fontWeight: '800', marginTop: 3, paddingRight: 18 },
-  previewDivider: { height: 1, backgroundColor: '#DCE5F2', marginVertical: 6 },
-  previewDefinition: { color: '#4B5E7E', fontSize: 9, lineHeight: 14, marginTop: 3, paddingRight: 18 },
-  removeCard: { position: 'absolute', right: 8, top: 8, padding: 2 },
-  pendingNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: 9, marginBottom: 4 },
-  pendingText: { flex: 1, color: '#8490A3', fontSize: 9, lineHeight: 13 },
-  footer: { flexDirection: 'row', gap: 8, paddingHorizontal: 17, paddingTop: 9, paddingBottom: 12, borderTopWidth: 1, borderTopColor: '#DCE5F2', backgroundColor: '#FFFFFF' },
-  previewButton: { flex: 1, minHeight: 40, borderRadius: 11, borderWidth: 1, borderColor: '#C9D1DD', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF' },
-  previewButtonDisabled: { opacity: 0.6 },
-  previewButtonText: { color: '#4B5E7E', fontSize: 9, fontWeight: '700' },
-  previewButtonTextDisabled: { color: '#98A2B3' },
-  saveButton: { flex: 1, minHeight: 40, paddingHorizontal: 9, borderRadius: 11, backgroundColor: '#102A68', alignItems: 'center', justifyContent: 'center' },
-  saveButtonText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  safe: {
+    flex: 1,
+    backgroundColor: '#F4F7FF',
+  },
+  header: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCopy: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  headerTitle: {
+    color: '#15264B',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  headerSubtitle: {
+    color: '#64748B',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerSpacer: {
+    width: 42,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 20,
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  tabItemActive: {
+    borderBottomColor: '#2563EB',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#94A3B8',
+  },
+  tabTextActive: {
+    color: '#2563EB',
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    width: '100%',
+    maxWidth: 600,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  sectionLabel: {
+    color: '#64748B',
+    fontSize: 12,
+    letterSpacing: 1.2,
+    fontWeight: '900',
+    marginBottom: 10,
+    marginTop: 10,
+  },
+  deckInputWrap: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 14,
+  },
+  deckInput: {
+    flex: 1,
+    color: '#15264B',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    padding: 4,
+    marginBottom: 14,
+    gap: 4,
+  },
+  modeOption: {
+    flex: 1,
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  modeOptionSelected: {
+    backgroundColor: '#2563EB',
+  },
+  modeText: {
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  modeTextSelected: {
+    color: '#FFFFFF',
+  },
+  materialList: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 14,
+    gap: 8,
+  },
+  materialRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+  },
+  materialRowChecked: {
+    borderColor: '#2563EB',
+    backgroundColor: '#EFF6FF',
+  },
+  materialName: {
+    flex: 1,
+    color: '#1E293B',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: '#94A3B8',
+    fontSize: 13,
+    paddingVertical: 6,
+  },
+  countHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  countValue: {
+    color: '#2563EB',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  countRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  countButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  countButtonSelected: {
+    borderColor: '#2563EB',
+    backgroundColor: '#2563EB',
+  },
+  countText: {
+    color: '#64748B',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  countTextSelected: {
+    color: '#FFFFFF',
+  },
+  manualForm: {
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    marginBottom: 14,
+  },
+  previewHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  previewCount: {
+    color: '#64748B',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  textInput: {
+    minHeight: 48,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: '#15264B',
+    fontSize: 14,
+    marginTop: 10,
+  },
+  definitionInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  addCardButton: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: '#2563EB',
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    marginTop: 14,
+  },
+  addCardText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  previewHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  editAll: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  emptyPreview: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 14,
+  },
+  emptyPreviewTitle: {
+    color: '#15264B',
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 10,
+  },
+  emptyPreviewText: {
+    color: '#64748B',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  previewCard: {
+    position: 'relative',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    padding: 16,
+    marginBottom: 12,
+  },
+  previewMiniLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    letterSpacing: 1.1,
+    fontWeight: '900',
+  },
+  previewTerm: {
+    color: '#15264B',
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 4,
+    paddingRight: 28,
+  },
+  previewDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginVertical: 10,
+  },
+  previewDefinition: {
+    color: '#334155',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
+    paddingRight: 28,
+  },
+  removeCard: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    padding: 4,
+  },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+  },
+  saveButton: {
+    minHeight: 54,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionActionText: {
+    color: '#2563EB',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  deckCard: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
+  deckCardIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#E5F8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  deckCardContent: {
+    flex: 1,
+  },
+  deckCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#15264B',
+  },
+  deckCardSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  studyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  studyBadgeText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    marginTop: 20,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#E5F8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#15264B',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  emptyActionBtn: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  emptyActionText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  pressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
 });
