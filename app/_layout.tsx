@@ -1,6 +1,6 @@
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { initializeDatabase, seedReviewers } from '../database/database';
 import { initializeFirebase } from '../firebase';
 import { initNetworkAutoSync } from '../firebase/sync';
@@ -85,8 +85,20 @@ export default function RootLayout() {
   if (state === 'loading') {
     return (
       <View style={styles.startup}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={styles.message}>Preparing your offline library…</Text>
+        <View style={styles.brandBox}>
+          <Image
+            source={require('../assets/tuon-logo.png')}
+            style={styles.logo}
+            resizeMode="cover"
+            accessibilityLabel="TUON logo"
+          />
+          <Text style={styles.appName}>TUON</Text>
+          <Text style={styles.tagline}>Learn smarter, even when offline.</Text>
+        </View>
+
+        <View style={styles.loadingIndicatorContainer}>
+          <ActivityIndicator size="small" color="#2563EB" />
+        </View>
       </View>
     );
   }
@@ -103,12 +115,58 @@ export default function RootLayout() {
     );
   }
 
-  return <SafeAreaProvider><ThemeProvider><Stack screenOptions={{ headerShown: false }} /></ThemeProvider></SafeAreaProvider>;
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <Stack screenOptions={{ headerShown: false }} />
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
 }
 
 const styles = StyleSheet.create({
-  startup: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28, backgroundColor: '#F4F7FF' },
-  message: { marginTop: 14, color: '#666666', fontSize: 14 },
+  startup: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 28,
+    backgroundColor: '#F8FAFC',
+  },
+  brandBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logo: {
+    width: 96,
+    height: 96,
+    borderRadius: 24,
+    marginBottom: 16,
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  appName: {
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 3,
+    color: '#0F172A',
+  },
+  tagline: {
+    marginTop: 6,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  loadingIndicatorContainer: {
+    marginTop: 36,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   errorTitle: { color: '#15264B', fontSize: 18, fontWeight: '800', textAlign: 'center' },
   errorMessage: { marginTop: 8, color: '#777777', textAlign: 'center' },
   retryButton: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 14, backgroundColor: '#2563EB' },
