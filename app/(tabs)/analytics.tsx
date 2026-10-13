@@ -50,10 +50,10 @@ export default function AnalyticsScreen() {
 
   return <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safe, dark && { backgroundColor: '#0B1220' }]}>
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={[styles.eyebrow, dark && { color: '#FBBF24' }]}>YOUR PROGRESS</Text><Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Analytics</Text>
+      <Text style={[styles.eyebrow, dark && { color: '#7CB0FF' }]}>YOUR PROGRESS</Text><Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Analytics</Text>
       <Text style={[styles.subtitle, dark && { color: '#AAB7CC' }]}>Progress from study activity saved on this device.</Text>
       <View style={[styles.card, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Text style={[styles.label, dark && { color: '#AAB7CC' }]}>AVERAGE REVIEWER MASTERY</Text><Text style={styles.big}>{mastery}%</Text><View style={[styles.track, dark && { backgroundColor: '#202E44' }]}><View style={[styles.fill, { width: `${mastery}%` }]} /></View></View>
-      <View style={[styles.card, styles.streakCard, dark ? { backgroundColor: '#172235', borderColor: '#4E3510' } : { borderColor: '#FDE68A' }]}>
+      <View style={[styles.card, styles.streakCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
         <View style={styles.streakLeft}>
           <View style={[styles.streakIconWrapper, dark && { backgroundColor: '#331B10' }]}><Ionicons name="flame" size={26} color="#EA580C" /></View>
           <View>
@@ -89,13 +89,13 @@ function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; va
 const styles = StyleSheet.create({
   safe:{flex:1,backgroundColor:'#F4F7FF'},
   container:{padding:20,paddingBottom:40,maxWidth:600,width:'100%',alignSelf:'center'},
-  eyebrow:{color:'#D97706',fontSize:11,fontWeight:'900',letterSpacing:1.5},
+  eyebrow:{color:'#2563EB',fontSize:11,fontWeight:'900',letterSpacing:1.5},
   title:{fontSize:28,fontWeight:'900',color:'#15264B'},
   subtitle:{fontSize:13,color:'#888',marginTop:5,marginBottom:18},
   card:{backgroundColor:'#FFF',borderWidth:1,borderColor:'#DCE5F2',borderRadius:18,padding:16,marginBottom:12},
   streakCard:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
   streakLeft:{flexDirection:'row',alignItems:'center',gap:12},
-  streakIconWrapper:{width:44,height:44,borderRadius:14,backgroundColor:'#FFF7DE',alignItems:'center',justifyContent:'center'},
+  streakIconWrapper:{width:44,height:44,borderRadius:14,backgroundColor:'#FFF3EB',alignItems:'center',justifyContent:'center'},
   streakRight:{alignItems:'flex-end'},
   bestStreakLabel:{fontSize:13,fontWeight:'800',color:'#15264B'},
   streakSub:{fontSize:11,color:'#888',marginTop:2},
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
   rowCopy:{flex:1},
   rowTitle:{fontSize:14,fontWeight:'800',color:'#15264B'},
   rowSub:{fontSize:11,color:'#888',marginTop:3},
-  value:{fontSize:15,fontWeight:'900',color:'#D97706'},
+  value:{fontSize:15,fontWeight:'900',color:'#2563EB'},
   empty:{fontSize:13,color:'#888'},
   note:{marginTop:8,fontSize:11,lineHeight:17,color:'#888'}
 });

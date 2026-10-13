@@ -97,7 +97,7 @@ export default function RootLayout() {
         </View>
 
         <View style={styles.loadingIndicatorContainer}>
-          <ActivityIndicator size="small" color="#E2A700" />
+          <ActivityIndicator size="small" color="#2563EB" />
         </View>
       </View>
     );
@@ -140,12 +140,10 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 24,
-    borderWidth: 2.5,
-    borderColor: '#E2A700',
     marginBottom: 16,
-    shadowColor: '#E2A700',
+    shadowColor: '#1E3A8A',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 4,
   },

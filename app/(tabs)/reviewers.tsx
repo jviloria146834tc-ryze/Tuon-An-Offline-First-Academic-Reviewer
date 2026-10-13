@@ -79,7 +79,7 @@ export default function ReviewersScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.eyebrow, dark && { color: '#FBBF24' }]}>YOUR LIBRARY</Text>
+            <Text style={[styles.eyebrow, dark && { color: '#7CB0FF' }]}>YOUR LIBRARY</Text>
             <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Reviewers</Text>
           </View>
           <Pressable
@@ -165,11 +165,11 @@ export default function ReviewersScreen() {
                 <View
                   style={[
                     styles.masteryRing,
-                    dark && { backgroundColor: '#131C2D', borderColor: '#E2A700' },
+                    dark && { backgroundColor: '#131C2D', borderColor: '#2563EB' },
                     isDone && (dark ? { borderColor: '#475569' } : styles.masteryRingDone),
                   ]}
                 >
-                  <Text style={[styles.masteryText, dark && { color: '#FBBF24' }]}>
+                  <Text style={[styles.masteryText, dark && { color: '#F2F6FF' }]}>
                     {Math.round(reviewer.mastery)}%
                   </Text>
                 </View>
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.canvas },
   container: { flex: 1, width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 18, paddingTop: 12 },
   header: { minHeight: 62, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: '#D97706', marginBottom: 3 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: COLORS.cyan, marginBottom: 3 },
   title: { fontSize: 27, fontWeight: '900', color: COLORS.navy },
   notificationButton: {
     width: 48,
@@ -265,9 +265,9 @@ const styles = StyleSheet.create({
   listContent: { paddingTop: 2, paddingBottom: 96 },
   reviewerCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, marginBottom: 9 },
   cardPressed: { backgroundColor: '#F1F4F7', transform: [{ scale: 0.99 }] },
-  masteryRing: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, borderColor: '#E2A700', alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: COLORS.surface },
+  masteryRing: { width: 46, height: 46, borderRadius: 23, borderWidth: 3, borderColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: COLORS.surface },
   masteryRingDone: { borderColor: '#B9C7DA' },
-  masteryText: { color: '#B45309', fontSize: 9, fontWeight: '900' },
+  masteryText: { color: COLORS.navy, fontSize: 9, fontWeight: '900' },
   reviewerContent: { flex: 1, minWidth: 0 },
   reviewerName: { color: COLORS.navy, fontSize: 14, fontWeight: '800' },
   metadata: { color: '#6E7D97', fontSize: 10, marginTop: 4 },
@@ -282,6 +282,6 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingHorizontal: 24, paddingTop: 52 },
   emptyTitle: { color: '#20345C', fontSize: 15, fontWeight: '800', marginTop: 12 },
   emptyText: { maxWidth: 270, color: '#8490A3', fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: 5 },
-  floatingButton: { position: 'absolute', right: 14, bottom: 17, width: 56, height: 56, borderRadius: 28, backgroundColor: '#102A68', borderWidth: 2, borderColor: '#E2A700', alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: COLORS.navy, shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
+  floatingButton: { position: 'absolute', right: 14, bottom: 17, width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.blue, alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: COLORS.navy, shadowOpacity: 0.2, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
   floatingPressed: { transform: [{ scale: 0.95 }] },
 });

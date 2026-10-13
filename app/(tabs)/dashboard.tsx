@@ -160,7 +160,7 @@ export default function Dashboard() {
           <Pressable
             style={({ pressed }) => [
               styles.statCard,
-              dark ? { backgroundColor: '#172235', borderColor: '#4E3510' } : { borderColor: '#FDE68A' },
+              dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
               pressed && styles.statCardPressed,
             ]}
             onPress={() => router.push('/(tabs)/analytics')}
@@ -212,16 +212,16 @@ export default function Dashboard() {
 
         <View style={[styles.reviewCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
 
-          <View style={[styles.subjectIcon, dark ? { backgroundColor: '#2A1C0A' } : { backgroundColor: '#FFF7DE' }]}>
+          <View style={[styles.subjectIcon, dark && { backgroundColor: '#102544' }]}>
             <Ionicons
               name="globe-outline"
               size={27}
-              color={dark ? '#FBBF24' : '#D97706'}
+              color="#2563EB"
             />
           </View>
 
           <View style={styles.reviewInfo}>
-            <Text style={[styles.courseCode, dark && { color: '#FBBF24' }]}>
+            <Text style={styles.courseCode}>
               {firstDueReviewer?.subject ?? 'No reviewer yet'}
             </Text>
 
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
   courseCode: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#2563EB',
   },
 
   courseName: {
@@ -631,6 +631,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 
-  floatingButton: { position: 'absolute', right: 20, bottom: 16, width: 56, height: 56, borderRadius: 28, backgroundColor: '#102A68', borderWidth: 2, borderColor: '#E2A700', alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: '#000000', shadowOpacity: 0.17, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
+  floatingButton: { position: 'absolute', right: 20, bottom: 16, width: 56, height: 56, borderRadius: 28, backgroundColor: '#102A68', alignItems: 'center', justifyContent: 'center', elevation: 5, shadowColor: '#000000', shadowOpacity: 0.17, shadowRadius: 7, shadowOffset: { width: 0, height: 3 } },
   floatingPressed: { transform: [{ scale: 0.95 }] },
 });
