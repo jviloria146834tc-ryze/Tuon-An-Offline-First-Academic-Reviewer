@@ -285,14 +285,14 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dark && styles.dividerDark]} />
 
             <View style={styles.settingRow}>
               <View
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#E5F8FF',
+                    backgroundColor: dark ? '#102544' : '#E5F8FF',
                   },
                 ]}
               >
@@ -314,7 +314,7 @@ export default function SettingsScreen() {
               </View>
             </View>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dark && styles.dividerDark]} />
 
             <Pressable
               style={({ pressed }) => [
@@ -329,7 +329,7 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF2FF',
+                    backgroundColor: dark ? '#102544' : '#EAF2FF',
                   },
                 ]}
               >
@@ -361,7 +361,7 @@ export default function SettingsScreen() {
               />
             </Pressable>
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dark && styles.dividerDark]} />
 
             <Pressable
               style={({ pressed }) => [
@@ -376,7 +376,7 @@ export default function SettingsScreen() {
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#FFF5D6',
+                    backgroundColor: dark ? '#2A2012' : '#FFF5D6',
                   },
                 ]}
               >
@@ -417,24 +417,24 @@ export default function SettingsScreen() {
             ABOUT
           </Text>
 
-          <View style={styles.settingsGroup}>
+          <View style={[styles.settingsGroup, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
             <SettingsRow
               icon="information-circle-outline"
               iconColor="#00A8E8"
-              iconBackground="#E5F8FF"
+              iconBackground={dark ? '#0C283B' : '#E5F8FF'}
               title="About TUON"
-            subtitle="TUON is an offline-first study reviewer"
-            onPress={() => Alert.alert('About TUON', 'Organize reviewer notes, flashcards, and quizzes. Offline study data is stored on this device.')}
+              subtitle="TUON is an offline-first study reviewer"
+              onPress={() => Alert.alert('About TUON', 'Organize reviewer notes, flashcards, and quizzes. Offline study data is stored on this device.')}
             />
 
-            <View style={styles.divider} />
+            <View style={[styles.divider, dark && styles.dividerDark]} />
 
             <View style={styles.settingRow}>
               <View
                 style={[
                   styles.settingIcon,
                   {
-                    backgroundColor: '#EAF2FF',
+                    backgroundColor: dark ? '#102544' : '#EAF2FF',
                   },
                 ]}
               >
@@ -464,22 +464,25 @@ export default function SettingsScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.logoutButton,
+              dark && styles.logoutButtonDark,
               pressed && styles.pressed,
             ]}
             onPress={handleLogout}
+            accessibilityRole="button"
+            accessibilityLabel="Log Out"
           >
             <Ionicons
               name="log-out-outline"
               size={21}
-              color="#FF4B4B"
+              color={dark ? '#FF6B6B' : '#FF4B4B'}
             />
 
-            <Text style={styles.logoutText}>
+            <Text style={[styles.logoutText, dark && styles.logoutTextDark]}>
               Log Out
             </Text>
           </Pressable>
 
-          <Text style={styles.footerText}>
+          <Text style={[styles.footerText, dark && styles.footerTextDark]}>
             TUON - Learn anywhere, even when offline.
           </Text>
         </View>
@@ -723,6 +726,10 @@ const styles = StyleSheet.create({
     marginLeft: 54,
   },
 
+  dividerDark: {
+    backgroundColor: '#26354D',
+  },
+
   statusBadge: {
     backgroundColor: '#EAF2FF',
     borderRadius: 9,
@@ -765,10 +772,19 @@ const styles = StyleSheet.create({
     gap: 8,
   },
 
+  logoutButtonDark: {
+    backgroundColor: '#261214',
+    borderColor: '#4A1D23',
+  },
+
   logoutText: {
     color: '#FF4B4B',
     fontSize: 13,
     fontWeight: '900',
+  },
+
+  logoutTextDark: {
+    color: '#FF6B6B',
   },
 
   footerText: {
@@ -777,5 +793,9 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 22,
     marginBottom: 10,
+  },
+
+  footerTextDark: {
+    color: '#64748B',
   },
 });
