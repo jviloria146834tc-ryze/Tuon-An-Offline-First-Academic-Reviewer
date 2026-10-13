@@ -138,7 +138,7 @@ export default function SettingsScreen() {
         <View style={styles.container}>
           <View style={styles.header}>
             <View style={styles.headerText}>
-              <Text style={[styles.smallHeading, dark && { color: '#7CB0FF' }]}>
+              <Text style={[styles.smallHeading, dark && { color: '#FBBF24' }]}>
                 PREFERENCES
               </Text>
               <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>
@@ -422,7 +422,7 @@ export default function SettingsScreen() {
             <View style={styles.aboutHeaderRow}>
               <Image
                 source={require('../../assets/tuon-logo.png')}
-                style={[styles.aboutLogo, dark && { borderColor: '#2B3A52' }]}
+                style={[styles.aboutLogo, { borderColor: '#E2A700' }]}
                 resizeMode="cover"
                 accessibilityLabel="TUON logo"
               />
@@ -433,8 +433,8 @@ export default function SettingsScreen() {
                 <Text style={[styles.aboutTagline, dark && { color: '#AAB7CC' }]}>
                   Learn smarter, even when offline.
                 </Text>
-                <View style={[styles.aboutVersionBadge, dark && { backgroundColor: '#102544' }]}>
-                  <Text style={[styles.aboutVersionText, dark && { color: '#7CB0FF' }]}>
+                <View style={[styles.aboutVersionBadge, dark ? { backgroundColor: '#2A1C0A', borderColor: '#4E3510' } : { backgroundColor: '#FFF7DE', borderColor: '#FDE68A' }]}>
+                  <Text style={[styles.aboutVersionText, dark ? { color: '#FBBF24' } : { color: '#D97706' }]}>
                     v1.0.0 • Offline-First
                   </Text>
                 </View>
@@ -481,7 +481,7 @@ export default function SettingsScreen() {
           <View style={styles.footerBrand}>
             <Image
               source={require('../../assets/tuon-logo.png')}
-              style={styles.footerLogo}
+              style={[styles.footerLogo, { borderColor: '#E2A700', borderWidth: 1 }]}
               resizeMode="cover"
               accessibilityLabel="TUON logo"
             />
@@ -602,13 +602,13 @@ const styles = StyleSheet.create({
   },
 
   notificationButton: {
-    width: 46,
-    height: 46,
+    width: 48,
+    height: 48,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: '#DCE5F2',
     marginTop: 4,
     marginLeft: 12,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1.5,
-    color: '#2563EB',
+    color: '#D97706',
     marginBottom: 3,
   },
 

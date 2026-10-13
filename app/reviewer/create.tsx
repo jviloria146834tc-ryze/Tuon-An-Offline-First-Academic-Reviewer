@@ -73,11 +73,11 @@ export default function CreateReviewerScreen() {
         >
           {/* INTRO */}
           <View style={styles.intro}>
-            <View style={[styles.iconContainer, dark && { backgroundColor: '#172235' }]}>
+            <View style={[styles.iconContainer, dark ? { backgroundColor: '#2A1C0A', borderColor: '#4E3510' } : { backgroundColor: '#FFF7DE', borderColor: '#FDE68A' }, { borderWidth: 1.5 }]}>
               <Ionicons
                 name="book-outline"
                 size={32}
-                color="#2563EB"
+                color={dark ? '#FBBF24' : '#D97706'}
               />
             </View>
 
@@ -180,11 +180,11 @@ export default function CreateReviewerScreen() {
               onValueChange={setReminderEnabled}
               trackColor={{
                 false: dark ? '#334155' : '#D9D9D9',
-                true: '#B8E994',
+                true: '#FDE68A',
               }}
               thumbColor={
                 reminderEnabled
-                  ? '#2563EB'
+                  ? '#E2A700'
                   : '#FFFFFF'
               }
             />

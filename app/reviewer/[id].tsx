@@ -333,7 +333,7 @@ export default function ReviewerDetailScreen() {
               OVERALL MASTERY
             </Text>
 
-            <Text style={[styles.progressNumber, dark && { color: '#7CB0FF' }]}>
+            <Text style={[styles.progressNumber, dark ? { color: '#FBBF24' } : { color: '#D97706' }]}>
               {reviewer.mastery}%
             </Text>
           </View>
@@ -688,7 +688,8 @@ const styles = StyleSheet.create({
   subject: {
     marginTop: 2,
     fontSize: 12,
-    color: '#888888',
+    fontWeight: '800',
+    color: '#D97706',
   },
 
   editButton: {
@@ -815,7 +816,7 @@ const styles = StyleSheet.create({
 
   progressFill: {
     height: '100%',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#E2A700',
     borderRadius: 10,
   },
 
