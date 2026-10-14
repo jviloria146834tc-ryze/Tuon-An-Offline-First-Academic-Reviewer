@@ -180,43 +180,17 @@ export async function deleteReminder(reminderId: string): Promise<void> {
 
 export async function getNotificationHistory(): Promise<SQLiteNotificationHistory[]> {
   const db = await getDatabase();
-  const history = await db.getAllAsync<SQLiteNotificationHistory>(`
+  // Ensure legacy sample demo notifications are cleaned up
+  await db.runAsync(
+    "DELETE FROM notifications_history WHERE title IN ('Time to study IT 26: HCI!', 'Study session completed')"
+  ).catch(() => {});
+
+  return db.getAllAsync<SQLiteNotificationHistory>(`
     SELECT nh.*, r.name as reviewer_name
     FROM notifications_history nh
     LEFT JOIN reviewers r ON r.reviewer_id = nh.reviewer_id
     ORDER BY nh.finished_at DESC
   `);
-
-  // If completely empty, insert sample finished notifications so user can see grayed out history
-  if (!history || history.length === 0) {
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-
-    await addNotificationHistory({
-      title: 'Time to study IT 26: HCI!',
-      body: 'Review your saved cards and keep your learning streak moving.',
-      scheduled_time: 'Yesterday · 8:00 PM',
-      finished_at: yesterday,
-      status: 'completed',
-    });
-
-    await addNotificationHistory({
-      title: 'Study session completed',
-      body: 'You completed your daily flashcard review on this device.',
-      scheduled_time: '2 days ago · 5:00 PM',
-      finished_at: twoDaysAgo,
-      status: 'completed',
-    });
-
-    return db.getAllAsync<SQLiteNotificationHistory>(`
-      SELECT nh.*, r.name as reviewer_name
-      FROM notifications_history nh
-      LEFT JOIN reviewers r ON r.reviewer_id = nh.reviewer_id
-      ORDER BY nh.finished_at DESC
-    `);
-  }
-
-  return history;
 }
 
 export async function addNotificationHistory(input: {

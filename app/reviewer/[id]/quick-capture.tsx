@@ -86,8 +86,14 @@ export default function QuickCaptureScreen() {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newUris = result.assets.map(a => a.uri);
-        setPhotos(prev => [...prev, ...newUris].slice(0, MAX_PHOTOS));
+        if (result.assets.length > remainingSlots) {
+          Alert.alert(
+            'Limit Reached',
+            `Only the first ${remainingSlots} photo${remainingSlots > 1 ? 's were' : ' was'} added to stay within the ${MAX_PHOTOS}-photo limit.`
+          );
+        }
+        const newUris = result.assets.slice(0, remainingSlots).map(a => a.uri);
+        setPhotos(prev => [...prev, ...newUris]);
       }
     } catch (error) {
       Alert.alert('Gallery Error', error instanceof Error ? error.message : 'Could not open gallery.');

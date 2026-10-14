@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -26,7 +27,6 @@ import {
 } from '../../../database/materials';
 import { getQuickCapturesByReviewer } from '../../../database/activity';
 import { useAppTheme } from '../../../utils/ThemeContext';
-import { extractDocumentNotesWithGemini } from '../../../utils/gemini';
 
 export type AttachedFile = {
   id: string;
@@ -54,6 +54,9 @@ export default function AddMaterialScreen() {
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+
+  const MAX_PHOTOS = 5;
+  const photoAttachmentsCount = attachments.filter(a => a.type === 'image').length;
 
   // Quick Capture & Preview Modal States
   const [captureModalVisible, setCaptureModalVisible] = useState(() => captureMode === 'capture');
@@ -200,19 +203,10 @@ export default function AddMaterialScreen() {
 
       let extractedPreviewText = '';
 
-      if (isPdf) {
-        try {
-          const base64Content = await readFileData(fileAsset, true);
-          extractedPreviewText = await extractDocumentNotesWithGemini(base64Content, 'application/pdf');
-        } catch {
-          extractedPreviewText = 'Could not automatically transcribe PDF notes with Gemini. You can view document information or enter notes manually.';
-        }
-      } else if (!isDoc) {
+      if (!isPdf && !isDoc) {
         try {
           extractedPreviewText = await readFileData(fileAsset, false);
         } catch {}
-      } else {
-        extractedPreviewText = 'Word Document (.docx) attached. You can preview its details or transcribe study notes in the notes section.';
       }
 
       const newAttachment: AttachedFile = {
@@ -227,12 +221,7 @@ export default function AddMaterialScreen() {
 
       setAttachments(prev => [...prev, newAttachment]);
 
-      // If the content is currently empty, provide extracted study text automatically for convenience
-      if (!content.trim() && extractedPreviewText && !isDoc) {
-        setContent(extractedPreviewText);
-      }
-
-      Alert.alert('File Attached', `${fileName} is attached to this study material. You can tap it to preview anytime.`);
+      Alert.alert('File Attached', `${fileName} is attached to this study material. Tap it anytime to open in your preferred viewer.`);
     } catch (error) {
       Alert.alert('Import Failed', error instanceof Error ? error.message : 'Could not attach the file.');
     } finally {
@@ -241,6 +230,11 @@ export default function AddMaterialScreen() {
   };
 
   const handleCameraCapture = async () => {
+    if (photoAttachmentsCount >= MAX_PHOTOS) {
+      Alert.alert('Limit Reached', `You can only attach up to ${MAX_PHOTOS} photos per study material.`);
+      return;
+    }
+
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -261,7 +255,7 @@ export default function AddMaterialScreen() {
         const asset = result.assets[0];
         const newAttachment: AttachedFile = {
           id: `capture-${Date.now()}`,
-          name: asset.fileName || `Photo Capture ${attachments.length + 1}`,
+          name: asset.fileName || `Photo Capture ${photoAttachmentsCount + 1}`,
           type: 'image',
           uri: asset.uri,
           size: asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : undefined,
@@ -275,6 +269,11 @@ export default function AddMaterialScreen() {
   };
 
   const handleGalleryCapture = async () => {
+    if (photoAttachmentsCount >= MAX_PHOTOS) {
+      Alert.alert('Limit Reached', `You can only attach up to ${MAX_PHOTOS} photos per study material.`);
+      return;
+    }
+
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -285,16 +284,22 @@ export default function AddMaterialScreen() {
         return;
       }
 
+      const remainingSlots = MAX_PHOTOS - photoAttachmentsCount;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsMultipleSelection: true,
+        selectionLimit: remainingSlots,
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const newPhotoAttachments: AttachedFile[] = result.assets.map((asset, idx) => ({
+        if (result.assets.length > remainingSlots) {
+          Alert.alert('Limit Reached', `Only ${remainingSlots} photo(s) added. Maximum limit is ${MAX_PHOTOS} photos.`);
+        }
+        const selectedAssets = result.assets.slice(0, remainingSlots);
+        const newPhotoAttachments: AttachedFile[] = selectedAssets.map((asset, idx) => ({
           id: `img-${Date.now()}-${idx}`,
-          name: asset.fileName || `Photo ${attachments.length + idx + 1}`,
+          name: asset.fileName || `Photo ${photoAttachmentsCount + idx + 1}`,
           type: 'image',
           uri: asset.uri,
           size: asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : undefined,
@@ -311,9 +316,59 @@ export default function AddMaterialScreen() {
     setAttachments(prev => prev.filter(item => item.id !== idToRemove));
   };
 
+  const getSharing = () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      return require('expo-sharing') as typeof import('expo-sharing');
+    } catch {
+      return null;
+    }
+  };
+
+  const openDocumentWithApp = async (file: AttachedFile) => {
+    if (!file.uri) {
+      Alert.alert('Cannot Open', 'File path is not available on this device.');
+      return;
+    }
+
+    const Sharing = getSharing();
+    if (Sharing) {
+      try {
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(file.uri, {
+            mimeType: file.mimeType || (file.type === 'pdf' ? 'application/pdf' : 'application/octet-stream'),
+            dialogTitle: `Open ${file.name}`,
+            UTI: file.type === 'pdf' ? 'com.adobe.pdf' : undefined,
+          });
+          return;
+        }
+      } catch {
+        // Fallback below
+      }
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(file.uri);
+      if (canOpen) {
+        await Linking.openURL(file.uri);
+        return;
+      }
+    } catch {
+      // Ignore
+    }
+
+    Alert.alert(
+      'New Build Required for External Apps',
+      'Opening documents with external viewers requires a new development build because expo-sharing was recently added to the project. Please create a new development build with EAS to enable this feature.'
+    );
+  };
+
   const openPreview = (file: AttachedFile) => {
     if (file.type === 'image' && file.uri) {
       setPreviewImageUri(file.uri);
+    } else if (file.type === 'pdf' || file.type === 'doc') {
+      void openDocumentWithApp(file);
     } else {
       setActivePreview(file);
       setPreviewModalVisible(true);
@@ -484,7 +539,7 @@ export default function AddMaterialScreen() {
                         {file.name}
                       </Text>
                       <Text style={[styles.fileMeta, dark && { color: '#AAB7CC' }]}>
-                        {file.type.toUpperCase()}{file.size ? ` • ${file.size}` : ''} • Tap to Preview
+                        {file.type.toUpperCase()}{file.size ? ` • ${file.size}` : ''} • {isImg ? 'Tap to Preview' : 'Tap to Open'}
                       </Text>
                     </View>
                   </Pressable>
@@ -493,9 +548,9 @@ export default function AddMaterialScreen() {
                     <Pressable
                       style={styles.previewBtnBadge}
                       onPress={() => openPreview(file)}
-                      accessibilityLabel="Preview file"
+                      accessibilityLabel={isImg ? 'Preview image' : 'Open document with app'}
                     >
-                      <Ionicons name="eye-outline" size={18} color="#2563EB" />
+                      <Ionicons name={isImg ? 'eye-outline' : 'open-outline'} size={18} color="#2563EB" />
                     </Pressable>
 
                     <Pressable
@@ -651,6 +706,17 @@ export default function AddMaterialScreen() {
             </ScrollView>
 
             <View style={[styles.docModalFooter, dark && { borderTopColor: '#2B3A52' }]}>
+              {activePreview && (
+                <Pressable
+                  style={[styles.docOpenWithBtn, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
+                  onPress={() => {
+                    void openDocumentWithApp(activePreview);
+                  }}
+                >
+                  <Ionicons name="open-outline" size={17} color={dark ? '#60A5FA' : '#1D4ED8'} />
+                  <Text style={[styles.docOpenWithText, dark && { color: '#60A5FA' }]}>OPEN WITH APP</Text>
+                </Pressable>
+              )}
               <Pressable
                 style={styles.docDoneBtn}
                 onPress={() => setPreviewModalVisible(false)}
@@ -672,10 +738,12 @@ export default function AddMaterialScreen() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={[styles.captureModalTitle, dark && { color: '#F2F6FF' }]}>
-                  Quick Capture
+                  Quick Capture ({photoAttachmentsCount}/{MAX_PHOTOS})
                 </Text>
                 <Text style={[styles.captureModalSubtitle, dark && { color: '#AAB7CC' }]}>
-                  Snap new photos or choose pictures from device
+                  {photoAttachmentsCount >= MAX_PHOTOS
+                    ? 'Photo limit reached (maximum 5 photos)'
+                    : `Snap new photos or choose pictures from device (${MAX_PHOTOS - photoAttachmentsCount} remaining)`}
                 </Text>
               </View>
               <Pressable
@@ -687,6 +755,15 @@ export default function AddMaterialScreen() {
                 <Ionicons name="close" size={22} color={dark ? '#AAB7CC' : '#64748B'} />
               </Pressable>
             </View>
+
+            {photoAttachmentsCount >= MAX_PHOTOS && (
+              <View style={[styles.limitNoticeBox, dark && { backgroundColor: '#2D1B1B', borderColor: '#7F1D1D' }]}>
+                <Ionicons name="alert-circle" size={18} color="#EF4444" />
+                <Text style={[styles.limitNoticeText, dark && { color: '#FCA5A5' }]}>
+                  Maximum photo limit of {MAX_PHOTOS} photos reached. Remove an existing photo to take or upload more.
+                </Text>
+              </View>
+            )}
 
             <View style={styles.captureOptions}>
               <Pressable
@@ -1115,6 +1192,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
   },
+  docOpenWithBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginBottom: 8,
+  },
+  docOpenWithText: {
+    color: '#1D4ED8',
+    fontWeight: '800',
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
   docDoneBtn: {
     backgroundColor: '#2563EB',
     borderRadius: 12,
@@ -1126,6 +1221,24 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 13,
     letterSpacing: 0.6,
+  },
+  limitNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 16,
+  },
+  limitNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    color: '#B91C1C',
+    fontWeight: '600',
   },
   captureModalOverlay: {
     flex: 1,

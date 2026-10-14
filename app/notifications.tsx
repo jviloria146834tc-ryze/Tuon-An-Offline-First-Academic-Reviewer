@@ -542,7 +542,7 @@ export default function NotificationsScreen() {
                 style={[
                   styles.dropdownTrigger,
                   dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
-                  reviewerDropdownOpen && styles.dropdownTriggerActive,
+                  reviewerDropdownOpen && (dark ? { borderColor: '#2563EB', backgroundColor: '#172235' } : styles.dropdownTriggerActive),
                 ]}
                 onPress={() => setReviewerDropdownOpen(!reviewerDropdownOpen)}
               >
@@ -575,6 +575,7 @@ export default function NotificationsScreen() {
                   <Pressable
                     style={[
                       styles.dropdownOption,
+                      dark && { borderBottomColor: '#2B3A52' },
                       selectedReviewerId === null && (dark ? styles.dropdownOptionSelectedDark : styles.dropdownOptionSelected),
                     ]}
                     onPress={() => {
@@ -583,11 +584,17 @@ export default function NotificationsScreen() {
                       setReviewerDropdownOpen(false);
                     }}
                   >
-                    <View style={[styles.optionIconBox, { backgroundColor: '#EAF2FF' }]}>
+                    <View style={[styles.optionIconBox, { backgroundColor: dark ? '#1E2C42' : '#EAF2FF' }]}>
                       <Ionicons name="library-outline" size={16} color="#2563EB" />
                     </View>
                     <View style={styles.optionTextWrap}>
-                      <Text style={[styles.optionTitle, dark && { color: '#F2F6FF' }]}>
+                      <Text
+                        style={[
+                          styles.optionTitle,
+                          dark && { color: '#F2F6FF' },
+                          selectedReviewerId === null && { color: dark ? '#7CB0FF' : '#2563EB', fontWeight: '800' },
+                        ]}
+                      >
                         General Study (All Reviewers)
                       </Text>
                       <Text style={[styles.optionSubtitle, dark && { color: '#AAB7CC' }]}>
@@ -606,6 +613,7 @@ export default function NotificationsScreen() {
                         key={r.reviewer_id}
                         style={[
                           styles.dropdownOption,
+                          dark && { borderBottomColor: '#2B3A52' },
                           isSelected && (dark ? styles.dropdownOptionSelectedDark : styles.dropdownOptionSelected),
                         ]}
                         onPress={() => {
@@ -626,7 +634,7 @@ export default function NotificationsScreen() {
                             style={[
                               styles.optionTitle,
                               dark && { color: '#F2F6FF' },
-                              isSelected && { color: '#2563EB', fontWeight: '800' },
+                              isSelected && { color: dark ? '#7CB0FF' : '#2563EB', fontWeight: '800' },
                             ]}
                             numberOfLines={1}
                           >
