@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getReviewers, SQLiteReviewer } from '../database/reviewers';
+import { getReviewers, getSrsReviewAlerts, SQLiteReviewer, SrsReviewAlert } from '../database/reviewers';
 import {
   getAllReminders,
   getNotificationHistory,
@@ -62,6 +62,7 @@ export default function NotificationsScreen() {
   const [reminders, setReminders] = useState<SQLiteStudyReminder[]>([]);
   const [history, setHistory] = useState<SQLiteNotificationHistory[]>([]);
   const [reviewers, setReviewers] = useState<SQLiteReviewer[]>([]);
+  const [srsAlerts, setSrsAlerts] = useState<SrsReviewAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Customize / Add Reminder Modal State
@@ -81,14 +82,16 @@ export default function NotificationsScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [rems, hist, revs] = await Promise.all([
+      const [rems, hist, revs, srs] = await Promise.all([
         getAllReminders(),
         getNotificationHistory(),
         getReviewers(),
+        getSrsReviewAlerts(),
       ]);
       setReminders(rems);
       setHistory(hist);
       setReviewers(revs);
+      setSrsAlerts(srs);
     } catch {
       // Fallback
     } finally {
@@ -451,6 +454,111 @@ export default function NotificationsScreen() {
               </View>
             )}
 
+            {/* SPACED REPETITION (SRS) ALERTS */}
+            <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Ionicons name="sparkles" size={14} color="#2563EB" />
+                <Text style={[styles.sectionLabel, { color: mutedText, marginTop: 0, marginBottom: 0 }]}>
+                  SPACED REPETITION (SRS) DUE
+                </Text>
+              </View>
+              {srsAlerts.some(a => a.due_cards > 0) && (
+                <View style={styles.dueBadge}>
+                  <Text style={styles.dueBadgeText}>
+                    {srsAlerts.filter(a => a.due_cards > 0).reduce((acc, curr) => acc + curr.due_cards, 0)} DUE
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {srsAlerts.length > 0 ? (
+              srsAlerts.map(alert => {
+                const isDue = alert.due_cards > 0;
+                return (
+                  <View
+                    key={alert.reviewer_id}
+                    style={[
+                      styles.srsCard,
+                      { backgroundColor: card, borderColor: isDue ? (dark ? '#3B82F6' : '#93C5FD') : border },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.srsIconBox,
+                        { backgroundColor: isDue ? (dark ? '#1E2C42' : '#EFF6FF') : (dark ? '#1A2231' : '#F8FAFC') },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isDue ? 'albums' : 'checkmark-circle-outline'}
+                        size={22}
+                        color={isDue ? '#2563EB' : '#10B981'}
+                      />
+                    </View>
+
+                    <View style={styles.srsCopy}>
+                      <View style={styles.srsTopRow}>
+                        <Text style={[styles.srsTitle, { color: mainText }]} numberOfLines={1}>
+                          {alert.name}
+                        </Text>
+                        <View
+                          style={[
+                            styles.srsStatusPill,
+                            isDue
+                              ? { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }
+                              : { backgroundColor: '#DCFCE7', borderColor: '#86EFAC' },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.srsStatusPillText,
+                              { color: isDue ? '#DC2626' : '#16A34A' },
+                            ]}
+                          >
+                            {isDue ? `${alert.due_cards} DUE` : 'UP TO DATE'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={[styles.srsMeta, { color: mutedText }]}>
+                        {isDue
+                          ? `${alert.due_cards} of ${alert.total_cards} cards ready for review • ${alert.subject}`
+                          : alert.next_due_date
+                          ? `Next review on ${alert.next_due_date} • ${alert.total_cards} cards`
+                          : `All ${alert.total_cards} cards reviewed • ${alert.subject}`}
+                      </Text>
+                    </View>
+
+                    <Pressable
+                      style={[
+                        styles.srsReviewBtn,
+                        isDue ? { backgroundColor: '#2563EB' } : { backgroundColor: dark ? '#1E2C42' : '#E2E8F0' },
+                      ]}
+                      onPress={() => router.push(`/reviewer/${alert.reviewer_id}/flashcards`)}
+                    >
+                      <Text
+                        style={[
+                          styles.srsReviewBtnText,
+                          isDue ? { color: '#FFFFFF' } : { color: dark ? '#93C5FD' : '#475569' },
+                        ]}
+                      >
+                        {isDue ? 'Review' : 'Practice'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                );
+              })
+            ) : (
+              <View style={[styles.emptyCard, { backgroundColor: card, borderColor: border }]}>
+                <Ionicons name="albums-outline" size={28} color="#94A3B8" />
+                <Text style={[styles.emptyTitle, { color: mainText, fontSize: 15 }]}>
+                  No flashcards to review yet
+                </Text>
+                <Text style={[styles.emptyText, { color: mutedText, fontSize: 12 }]}>
+                  Add flashcards to your reviewers to see automated spaced repetition reminders here!
+                </Text>
+              </View>
+            )}
+
             {/* PREVIOUS / FINISHED NOTIFICATIONS */}
             <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
               <Text style={[styles.sectionLabel, { color: mutedText }]}>
@@ -521,7 +629,7 @@ export default function NotificationsScreen() {
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalCard, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, dark && { borderBottomColor: '#2B3A52' }]}>
               <View style={styles.modalHeaderCopy}>
                 <Text style={[styles.modalTitle, dark && { color: '#F2F6FF' }]}>
                   {editingReminderId ? 'Customize Reminder' : 'Add Study Reminder'}
@@ -680,10 +788,22 @@ export default function NotificationsScreen() {
                       ]}
                       onPress={() => toggleDay(day.name)}
                     >
-                      <Text style={[styles.dayLetter, selected && styles.dayTextSelected]}>
+                      <Text
+                        style={[
+                          styles.dayLetter,
+                          dark && { color: '#CBD5E1' },
+                          selected && styles.dayTextSelected,
+                        ]}
+                      >
                         {day.short}
                       </Text>
-                      <Text style={[styles.dayName, selected && styles.dayTextSelected]}>
+                      <Text
+                        style={[
+                          styles.dayName,
+                          dark && { color: '#94A3B8' },
+                          selected && styles.dayTextSelected,
+                        ]}
+                      >
                         {day.name}
                       </Text>
                     </Pressable>
@@ -751,20 +871,40 @@ export default function NotificationsScreen() {
                   </View>
 
                   {/* AM / PM TOGGLE */}
-                  <View style={styles.periodCol}>
+                  <View style={[styles.periodCol, dark && { borderColor: '#2B3A52', backgroundColor: '#111B2B' }]}>
                     <Pressable
-                      style={[styles.periodBtn, customPeriod === 'AM' && styles.periodBtnActive]}
+                      style={[
+                        styles.periodBtn,
+                        dark && { backgroundColor: '#172235' },
+                        customPeriod === 'AM' && styles.periodBtnActive,
+                      ]}
                       onPress={() => updateCustomTime(customHour, customMinute, 'AM')}
                     >
-                      <Text style={[styles.periodBtnText, customPeriod === 'AM' && styles.periodBtnTextActive]}>
+                      <Text
+                        style={[
+                          styles.periodBtnText,
+                          dark && { color: '#AAB7CC' },
+                          customPeriod === 'AM' && styles.periodBtnTextActive,
+                        ]}
+                      >
                         AM
                       </Text>
                     </Pressable>
                     <Pressable
-                      style={[styles.periodBtn, customPeriod === 'PM' && styles.periodBtnActive]}
+                      style={[
+                        styles.periodBtn,
+                        dark && { backgroundColor: '#172235' },
+                        customPeriod === 'PM' && styles.periodBtnActive,
+                      ]}
                       onPress={() => updateCustomTime(customHour, customMinute, 'PM')}
                     >
-                      <Text style={[styles.periodBtnText, customPeriod === 'PM' && styles.periodBtnTextActive]}>
+                      <Text
+                        style={[
+                          styles.periodBtnText,
+                          dark && { color: '#AAB7CC' },
+                          customPeriod === 'PM' && styles.periodBtnTextActive,
+                        ]}
+                      >
                         PM
                       </Text>
                     </Pressable>
@@ -772,7 +912,7 @@ export default function NotificationsScreen() {
                 </View>
 
                 {/* Quick Minute Selection Pills */}
-                <View style={styles.quickMinutesRow}>
+                <View style={[styles.quickMinutesRow, dark && { borderTopColor: '#2B3A52' }]}>
                   <Text style={[styles.quickMinutesLabel, dark && { color: '#64748B' }]}>Quick min:</Text>
                   {['00', '15', '30', '45'].map(m => {
                     const active = customMinute === m;
@@ -832,26 +972,36 @@ export default function NotificationsScreen() {
                   thumbColor={reminderEnabled ? '#2563EB' : '#FFFFFF'}
                 />
               </View>
-
-              {editingReminderId && (
-                <Pressable
-                  style={styles.deleteBtn}
-                  onPress={() => handleDeleteReminder(editingReminderId)}
-                >
-                  <Ionicons name="trash-outline" size={17} color="#DC2626" />
-                  <Text style={styles.deleteBtnText}>Delete This Reminder</Text>
-                </Pressable>
-              )}
             </ScrollView>
 
             <View style={[styles.modalFooter, dark && { borderTopColor: '#2B3A52' }]}>
-              <Pressable
-                style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-                disabled={saving}
-                onPress={handleSaveReminder}
-              >
-                <Text style={styles.saveBtnText}>{saving ? 'SAVING...' : 'SAVE REMINDER'}</Text>
-              </Pressable>
+              {editingReminderId ? (
+                <View style={styles.modalFooterButtonsRow}>
+                  <Pressable
+                    style={[styles.deleteOutlineBtn, dark && { borderColor: '#7F1D1D', backgroundColor: '#2A1215' }]}
+                    onPress={() => handleDeleteReminder(editingReminderId)}
+                  >
+                    <Ionicons name="trash-outline" size={17} color="#EF4444" style={{ marginRight: 6 }} />
+                    <Text style={styles.deleteOutlineBtnText}>Delete</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.saveBtn, { flex: 1 }, saving && { opacity: 0.6 }]}
+                    disabled={saving}
+                    onPress={handleSaveReminder}
+                  >
+                    <Text style={styles.saveBtnText}>{saving ? 'SAVING...' : 'SAVE CHANGES'}</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+                  disabled={saving}
+                  onPress={handleSaveReminder}
+                >
+                  <Text style={styles.saveBtnText}>{saving ? 'SAVING...' : 'SAVE REMINDER'}</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         </View>
@@ -1164,12 +1314,112 @@ const styles = StyleSheet.create({
   quickMinTextActive: {
     color: '#FFF',
   },
+  modalHeaderActions: { flexDirection: 'row', alignItems: 'center' },
+  headerDeleteBtn: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#E2E8F0', marginTop: 12 },
   toggleTitle: { fontSize: 14, fontWeight: '700', color: '#15264B' },
   toggleSubtitle: { fontSize: 11, color: '#78859B', marginTop: 2 },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 10 },
-  deleteBtnText: { color: '#DC2626', fontWeight: '800', fontSize: 13 },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 13,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+  },
+  deleteBtnText: { color: '#EF4444', fontWeight: '800', fontSize: 13 },
   modalFooter: { padding: 20, borderTopWidth: 1, borderTopColor: '#E2E8F0' },
+  modalFooterButtonsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  deleteOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  deleteOutlineBtnText: {
+    color: '#EF4444',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  dueBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  dueBadgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  srsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 10,
+  },
+  srsIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  srsCopy: {
+    flex: 1,
+    marginRight: 10,
+  },
+  srsTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 3,
+  },
+  srsTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    flex: 1,
+    marginRight: 6,
+  },
+  srsStatusPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  srsStatusPillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  srsMeta: {
+    fontSize: 11,
+    lineHeight: 15,
+  },
+  srsReviewBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  srsReviewBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
   saveBtn: { backgroundColor: '#2563EB', paddingVertical: 14, borderRadius: 14, alignItems: 'center' },
   saveBtnText: { color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
 });

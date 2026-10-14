@@ -8,6 +8,7 @@ export type SQLiteQuiz = {
   material_id: string;
   title: string;
   question_count: number;
+  material_content?: string | null;
   created_at: string;
   updated_at?: string;
   deleted_at?: string | null;
@@ -44,7 +45,10 @@ export type QuizInput = {
 export async function getQuizzesByMaterial(materialId: string): Promise<SQLiteQuiz[]> {
   const db = await getDatabase();
   return db.getAllAsync<SQLiteQuiz>(
-    'SELECT * FROM quizzes WHERE material_id = ? AND deleted_at IS NULL ORDER BY created_at DESC',
+    `SELECT q.*, m.content as material_content FROM quizzes q 
+     LEFT JOIN materials m ON m.material_id = q.material_id 
+     WHERE q.material_id = ? AND q.deleted_at IS NULL AND m.deleted_at IS NULL 
+     ORDER BY q.created_at DESC`,
     materialId
   );
 }
@@ -52,7 +56,7 @@ export async function getQuizzesByMaterial(materialId: string): Promise<SQLiteQu
 export async function getQuizzesByReviewer(reviewerId: string): Promise<SQLiteQuiz[]> {
   const db = await getDatabase();
   return db.getAllAsync<SQLiteQuiz>(
-    `SELECT q.* FROM quizzes q 
+    `SELECT q.*, m.content as material_content FROM quizzes q 
      JOIN materials m ON m.material_id = q.material_id 
      WHERE m.reviewer_id = ? AND q.deleted_at IS NULL AND m.deleted_at IS NULL 
      ORDER BY q.created_at DESC`,

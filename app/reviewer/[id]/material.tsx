@@ -581,7 +581,7 @@ export default function AddMaterialScreen() {
             onPress={handleFileUpload}
             disabled={importing}
           >
-            <Ionicons name="cloud-upload-outline" size={20} color="#00A8E8" />
+            <Ionicons name="cloud-upload-outline" size={22} color="#00A8E8" />
             <Text style={[styles.quickAddText, { color: '#00A8E8' }]}>
               {importing ? 'Processing...' : 'Upload PDF / Docs'}
             </Text>
@@ -593,7 +593,7 @@ export default function AddMaterialScreen() {
             accessibilityRole="button"
             accessibilityLabel="Quick capture photos"
           >
-            <Ionicons name="camera-outline" size={20} color="#D79A00" />
+            <Ionicons name="camera-outline" size={22} color="#D79A00" />
             <Text style={[styles.quickAddText, { color: '#D79A00' }]}>Quick Capture</Text>
           </Pressable>
         </View>
@@ -993,25 +993,28 @@ const styles = StyleSheet.create({
   },
   quickAddRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-    marginBottom: 6,
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 8,
   },
   quickAddBtn: {
     flex: 1,
-    height: 48,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#DCE5F2',
-    borderRadius: 12,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 8,
   },
   quickAddText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
+    letterSpacing: 0.2,
   },
   notesContainer: {
     backgroundColor: '#FFFFFF',

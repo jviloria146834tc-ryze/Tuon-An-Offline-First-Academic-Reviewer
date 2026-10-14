@@ -54,6 +54,7 @@ export async function initializeDatabase(): Promise<void> {
           name TEXT NOT NULL,
           subject TEXT NOT NULL,
           description TEXT,
+          icon TEXT DEFAULT 'book-outline',
           mastery REAL NOT NULL DEFAULT 0,
           due_cards INTEGER NOT NULL DEFAULT 0,
           is_archived INTEGER NOT NULL DEFAULT 0,
@@ -219,6 +220,7 @@ export async function initializeDatabase(): Promise<void> {
 
       // Additive column migrations to support existing databases
       await ensureColumn(db, 'materials', 'content', 'TEXT');
+      await ensureColumn(db, 'reviewers', 'icon', "TEXT DEFAULT 'book-outline'");
       await ensureColumn(db, 'reviewers', 'is_archived', 'INTEGER DEFAULT 0');
       await ensureColumn(db, 'reviewers', 'deleted_at', 'TEXT');
       await ensureColumn(db, 'reviewers', 'synced_at', 'TEXT');

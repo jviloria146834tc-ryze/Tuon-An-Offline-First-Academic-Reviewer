@@ -247,4 +247,72 @@ export async function cancelScheduledNotifications(ids: string[]): Promise<void>
   }
 }
 
+/**
+ * Automatically schedules an SRS Spaced Repetition notification for when cards are due (e.g. 1d, 3d, 6d).
+ */
+export async function scheduleSrsReviewNotification(params: {
+  reviewerId: string;
+  reviewerName?: string;
+  intervalDays: number;
+  targetHour?: number;
+  targetMinute?: number;
+  cardCount?: number;
+}): Promise<string | null> {
+  try {
+    if (typeof NotificationsModule?.scheduleNotificationAsync !== 'function') {
+      return null;
+    }
+
+    const granted = await requestNotificationPermissionsAsync();
+    if (!granted) return null;
+    await ensureNotificationChannelAsync();
+
+    // Cancel any previous SRS reminder for this reviewer so we don't duplicate
+    const srsNotifId = `srs-${params.reviewerId}`;
+    try {
+      if (typeof NotificationsModule?.cancelScheduledNotificationAsync === 'function') {
+        await NotificationsModule.cancelScheduledNotificationAsync(srsNotifId);
+      }
+    } catch {}
+
+    const intervalDays = Math.max(1, params.intervalDays || 1);
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + intervalDays);
+    targetDate.setHours(params.targetHour ?? 9, params.targetMinute ?? 0, 0, 0);
+
+    // If target date is not in the future, push to tomorrow
+    if (targetDate.getTime() <= Date.now()) {
+      targetDate.setDate(targetDate.getDate() + 1);
+    }
+
+    const reviewerName = params.reviewerName || 'Study Material';
+    const title = `🧠 Flashcards Due: ${reviewerName}`;
+    const cardText = params.cardCount ? `${params.cardCount} ` : '';
+    const intervalText = intervalDays === 1 ? '1 day' : `${intervalDays} days`;
+    const body = `It's been ${intervalText} since your last review. Your ${cardText}flashcards are due for spaced repetition review!`;
+
+    await NotificationsModule.scheduleNotificationAsync({
+      identifier: srsNotifId,
+      content: {
+        title,
+        body,
+        data: {
+          type: 'srs',
+          reviewerId: params.reviewerId,
+        },
+      },
+      trigger: {
+        type: NotificationsModule.SchedulableTriggerInputTypes?.DATE ?? 'date',
+        date: targetDate,
+        channelId: 'study-reminders',
+      },
+    });
+
+    return srsNotifId;
+  } catch (error) {
+    console.warn('Failed to schedule SRS notification:', error);
+    return null;
+  }
+}
+
 export { NotificationsModule as Notifications };

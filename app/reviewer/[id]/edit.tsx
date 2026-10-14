@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { getReviewerById, updateReviewer } from '../../../database/reviewers';
+import { getReviewerById, updateReviewer, REVIEWER_ICONS } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
 
 export default function EditReviewerScreen() {
@@ -22,6 +22,7 @@ export default function EditReviewerScreen() {
   const [name, setName] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('book-outline');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,6 +38,7 @@ export default function EditReviewerScreen() {
       setName(reviewer.name);
       setSubject(reviewer.subject);
       setDescription(reviewer.description ?? '');
+      setSelectedIcon(reviewer.icon || 'book-outline');
     }).catch(error => {
       if (active) Alert.alert('Could not load reviewer', error instanceof Error ? error.message : 'Please try again.');
     }).finally(() => { if (active) setLoading(false); });
@@ -51,7 +53,7 @@ export default function EditReviewerScreen() {
     if (!canSave || !reviewerId || saving) return;
     setSaving(true);
     try {
-      await updateReviewer(reviewerId, { name, subject, description });
+      await updateReviewer(reviewerId, { name, subject, description, icon: selectedIcon });
       router.replace(`/reviewer/${reviewerId}`);
     } catch (error) {
       Alert.alert('Could not save changes', error instanceof Error ? error.message : 'Please try again.');
@@ -64,8 +66,14 @@ export default function EditReviewerScreen() {
     <SafeAreaView style={[styles.safeArea, dark && { backgroundColor: '#0B1220' }]}>
       <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
         <Pressable
-          style={styles.backButton}
-            onPress={() => router.replace(`/reviewer/${reviewerId}`)}
+          style={({ pressed }) => [
+            styles.backButton,
+            dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+            pressed && (dark ? { backgroundColor: '#1E2D44' } : { backgroundColor: '#EBF2FE' }),
+          ]}
+          onPress={() => router.replace(`/reviewer/${reviewerId}`)}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
         >
           <Ionicons
             name="chevron-back"
@@ -88,7 +96,7 @@ export default function EditReviewerScreen() {
       >
         <View style={[styles.heroIcon, dark && { backgroundColor: '#172235' }]}>
           <Ionicons
-            name="create-outline"
+            name={selectedIcon as any}
             size={32}
             color="#2563EB"
           />
@@ -156,6 +164,53 @@ export default function EditReviewerScreen() {
           textAlignVertical="top"
         />
 
+        {/* CHOOSE AN ICON */}
+        <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
+          CHOOSE AN ICON
+        </Text>
+
+        <View style={[styles.iconGrid, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+          {REVIEWER_ICONS.map((item) => {
+            const isSelected = selectedIcon === item.icon;
+            return (
+              <Pressable
+                key={item.icon}
+                onPress={() => setSelectedIcon(item.icon)}
+                style={[
+                  styles.iconTile,
+                  isSelected && (dark ? styles.iconTileSelectedDark : styles.iconTileSelected),
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label} icon`}
+              >
+                <View
+                  style={[
+                    styles.iconTileBadge,
+                    dark && { backgroundColor: '#111B2B' },
+                    isSelected && styles.iconTileBadgeSelected,
+                  ]}
+                >
+                  <Ionicons
+                    name={item.icon as any}
+                    size={22}
+                    color={isSelected ? '#FFFFFF' : (dark ? '#7CB0FF' : '#2563EB')}
+                  />
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    styles.iconTileLabel,
+                    dark && { color: '#AAB7CC' },
+                    isSelected && (dark ? { color: '#60A5FA', fontWeight: '800' } : styles.iconTileLabelSelected),
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
         <View style={[styles.infoCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
           <Ionicons
             name="information-circle-outline"
@@ -213,7 +268,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#F4F7FC',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -303,6 +360,65 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: '#15264B',
     marginBottom: 17,
+  },
+
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    padding: 10,
+    marginBottom: 17,
+    justifyContent: 'space-between',
+  },
+
+  iconTile: {
+    width: '23.5%',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+
+  iconTileSelected: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+  },
+
+  iconTileSelectedDark: {
+    backgroundColor: '#1E2D44',
+    borderWidth: 1.5,
+    borderColor: '#3B82F6',
+  },
+
+  iconTileBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F0F5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+
+  iconTileBadgeSelected: {
+    backgroundColor: '#2563EB',
+  },
+
+  iconTileLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#666666',
+    textAlign: 'center',
+  },
+
+  iconTileLabelSelected: {
+    color: '#2563EB',
+    fontWeight: '800',
   },
 
   infoCard: {

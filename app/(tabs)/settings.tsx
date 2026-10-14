@@ -58,6 +58,20 @@ export default function SettingsScreen() {
 
   const handleSync = async () => {
     if (isSyncing) return;
+
+    try {
+      const net = await Network.getNetworkStateAsync();
+      if (net.isConnected === false || net.isInternetReachable === false) {
+        Alert.alert(
+          'Internet Connection Required',
+          'Cloud synchronization requires an active internet connection. Please connect to Wi-Fi or mobile data to sync your study data.'
+        );
+        return;
+      }
+    } catch {
+      // Proceed if check fails
+    }
+
     setIsSyncing(true);
     try {
       const res = await performSync();

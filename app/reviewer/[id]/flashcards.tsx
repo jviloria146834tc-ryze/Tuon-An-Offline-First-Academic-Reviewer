@@ -21,7 +21,9 @@ import {
   saveSrsProgress,
   SrsRating,
 } from '../../../database/flashcards';
+import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { saveStudyActivity } from '../../../database/activity';
+import { scheduleSrsReviewNotification } from '../../../utils/notifications';
 import { useAppTheme } from '../../../utils/ThemeContext';
 
 export default function FlashcardStudyScreen() {
@@ -30,11 +32,14 @@ export default function FlashcardStudyScreen() {
   const reviewerId = Array.isArray(id) ? id[0] : id;
   const materialId = Array.isArray(materialParam) ? materialParam[0] : materialParam;
 
+  const [reviewer, setReviewer] = useState<SQLiteReviewer | null>(null);
   const [cards, setCards] = useState<SQLiteFlashcard[]>([]);
   const [index, setIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [loading, setLoading] = useState(true);
   const [finished, setFinished] = useState(false);
+  const [sessionMinInterval, setSessionMinInterval] = useState<number | null>(null);
+  const [scheduledDays, setScheduledDays] = useState<number | null>(null);
 
   // 3D Flip animation state
   const [flipAnim] = useState(() => new Animated.Value(0));
@@ -72,6 +77,13 @@ export default function FlashcardStudyScreen() {
 
   useEffect(() => {
     let active = true;
+    if (reviewerId) {
+      getReviewerById(reviewerId)
+        .then(rev => {
+          if (active) setReviewer(rev);
+        })
+        .catch(err => console.warn('Could not fetch reviewer details:', err));
+    }
     const fetchCards = async () => {
       if (materialId) {
         return getFlashcards(materialId);
@@ -103,6 +115,12 @@ export default function FlashcardStudyScreen() {
         next_review_date: nextSrs.next_review_date,
       });
 
+      const updatedMin =
+        sessionMinInterval === null
+          ? nextSrs.interval_days
+          : Math.min(sessionMinInterval, nextSrs.interval_days);
+      setSessionMinInterval(updatedMin);
+
       if (index < cards.length - 1) {
         setIndex(prev => prev + 1);
         setIsFlipped(false);
@@ -113,6 +131,17 @@ export default function FlashcardStudyScreen() {
           activity_type: 'flashcard_review',
           ended_at: new Date().toISOString(),
         });
+
+        const finalInterval = Math.max(1, updatedMin);
+        if (reviewerId) {
+          scheduleSrsReviewNotification({
+            reviewerId,
+            reviewerName: reviewer?.name,
+            intervalDays: finalInterval,
+            cardCount: cards.length,
+          }).catch(err => console.warn('Could not schedule SRS notification:', err));
+        }
+        setScheduledDays(finalInterval);
         setFinished(true);
       }
     } catch (error) {
@@ -165,6 +194,21 @@ export default function FlashcardStudyScreen() {
           <Text style={[styles.help, dark && { color: '#AAB7CC' }]}>
             You reviewed {cards.length} saved cards. Your ratings have been saved on this device.
           </Text>
+
+          {scheduledDays !== null && (
+            <View style={[styles.srsNoticeBox, dark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
+              <View style={styles.srsNoticeHeader}>
+                <Ionicons name="notifications" size={18} color="#2563EB" />
+                <Text style={[styles.srsNoticeTitle, dark && { color: '#93C5FD' }]}>
+                  Spaced Repetition Scheduled
+                </Text>
+              </View>
+              <Text style={[styles.srsNoticeText, dark && { color: '#94A3B8' }]}>
+                Next review due in {scheduledDays === 1 ? '1 day' : `${scheduledDays} days`}. An automatic reminder has been set for you!
+              </Text>
+            </View>
+          )}
+
           <Pressable
             style={styles.primary}
             onPress={() => {
@@ -555,5 +599,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 21,
     marginTop: 10,
+  },
+  srsNoticeBox: {
+    width: '100%',
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  srsNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  srsNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E3A8A',
+  },
+  srsNoticeText: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
   },
 });

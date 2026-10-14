@@ -3,11 +3,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Network from 'expo-network';
 import { createMaterial, getMaterialsByReviewer, SQLiteMaterial } from '../../../database/materials';
 import { saveFlashcards, getFlashcardDecksByReviewer, FlashcardDeck, FlashcardInput } from '../../../database/flashcards';
 import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
-import { extractFlashcardsWithGemini } from '../../../utils/gemini';
+import { extractFlashcardsWithGemini, getFriendlyAiErrorMessage } from '../../../utils/gemini';
 
 const CARD_COUNTS = [5, 10, 15, 20, 30] as const;
 type TabType = 'generate' | 'decks';
@@ -83,6 +84,30 @@ export default function FlashcardGeneratorScreen() {
       Alert.alert('No materials selected', 'Please select at least one study note or material to extract cards from.');
       return;
     }
+
+    try {
+      const net = await Network.getNetworkStateAsync();
+      if (net.isConnected === false || net.isInternetReachable === false) {
+        Alert.alert(
+          'Internet Connection Required',
+          'Generating flashcards with AI requires an active internet connection to connect to Google Gemini.\n\nYou can still create your own flashcards manually without an internet connection.',
+          [
+            {
+              text: 'Write Manually',
+              onPress: () => setMode('manual'),
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+        return;
+      }
+    } catch {
+      // Proceed if network state check fails
+    }
+
     const aggregatedContent = selectedItems.map(item => `${item.title}:\n${item.content}`).join('\n\n');
     setSaving(true);
     try {
@@ -94,7 +119,25 @@ export default function FlashcardGeneratorScreen() {
       setDraftCards(extracted);
       Alert.alert('Extraction complete', `Generated ${extracted.length} flashcards! Review them below and tap Save Deck.`);
     } catch (error) {
-      Alert.alert('Extraction error', error instanceof Error ? error.message : 'Please check your connection and API key.');
+      const { title, message, isOffline } = getFriendlyAiErrorMessage(error, 'Could not generate flashcards.');
+      if (isOffline) {
+        Alert.alert(
+          title,
+          `${message}\n\nYou can still create your own flashcards manually while offline.`,
+          [
+            {
+              text: 'Write Manually',
+              onPress: () => setMode('manual'),
+            },
+            {
+              text: 'OK',
+              style: 'cancel',
+            },
+          ]
+        );
+      } else {
+        Alert.alert(title, message);
+      }
     } finally {
       setSaving(false);
     }

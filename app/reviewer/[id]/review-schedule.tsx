@@ -484,22 +484,41 @@ export default function ReviewScheduleScreen() {
           </>
         )}
 
-        {/* SAVE SCHEDULE BUTTON */}
-        <Pressable
-          style={[styles.primarySaveBtn, saving && { opacity: 0.6 }]}
-          disabled={saving}
-          onPress={saveSchedule}
-        >
-          <Ionicons name="checkmark-circle" size={19} color="#FFF" style={{ marginRight: 8 }} />
-          <Text style={styles.primarySaveBtnText}>
-            {saving ? 'SAVING SCHEDULE...' : saved ? 'UPDATE SCHEDULE' : 'SAVE REMINDER SCHEDULE'}
-          </Text>
-        </Pressable>
+        {/* SAVE / UPDATE / DELETE SCHEDULE */}
+        {existingReminder ? (
+          <View style={styles.actionButtonsRow}>
+            <Pressable
+              style={[
+                styles.deleteOutlineBtn,
+                dark && { borderColor: '#7F1D1D', backgroundColor: '#2A1215' },
+              ]}
+              onPress={removeSchedule}
+            >
+              <Ionicons name="trash-outline" size={17} color="#EF4444" style={{ marginRight: 6 }} />
+              <Text style={styles.deleteOutlineBtnText}>Delete</Text>
+            </Pressable>
 
-        {existingReminder && (
-          <Pressable style={styles.deleteScheduleBtn} onPress={removeSchedule}>
-            <Ionicons name="trash-outline" size={17} color="#DC2626" />
-            <Text style={styles.deleteScheduleBtnText}>Delete This Schedule</Text>
+            <Pressable
+              style={[styles.primarySaveBtn, { flex: 1, marginTop: 0 }, saving && { opacity: 0.6 }]}
+              disabled={saving}
+              onPress={saveSchedule}
+            >
+              <Ionicons name="checkmark-circle" size={18} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.primarySaveBtnText}>
+                {saving ? 'SAVING...' : 'UPDATE SCHEDULE'}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={[styles.primarySaveBtn, saving && { opacity: 0.6 }]}
+            disabled={saving}
+            onPress={saveSchedule}
+          >
+            <Ionicons name="checkmark-circle" size={19} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.primarySaveBtnText}>
+              {saving ? 'SAVING SCHEDULE...' : 'SAVE REMINDER SCHEDULE'}
+            </Text>
           </Pressable>
         )}
 
@@ -670,8 +689,28 @@ const styles = StyleSheet.create({
   smartDescription: { fontSize: 12, color: '#777', marginTop: 3 },
   primarySaveBtn: { backgroundColor: '#2563EB', paddingVertical: 15, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', marginTop: 24 },
   primarySaveBtnText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.5 },
-  deleteScheduleBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, marginTop: 6 },
-  deleteScheduleBtnText: { color: '#DC2626', fontWeight: '800', fontSize: 13 },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 24,
+  },
+  deleteOutlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+  },
+  deleteOutlineBtnText: {
+    color: '#EF4444',
+    fontWeight: '800',
+    fontSize: 14,
+  },
   savedCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#DCE5F2', marginTop: 14 },
   savedTitle: { fontSize: 14, fontWeight: '800', color: '#15264B' },
   savedText: { fontSize: 12, color: '#777', marginTop: 2 },

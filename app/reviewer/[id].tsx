@@ -212,6 +212,14 @@ export default function ReviewerDetailScreen() {
             />
           </Pressable>
 
+          <View style={[styles.reviewerHeaderIcon, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+            <Ionicons
+              name={((reviewer.icon || 'book-outline') as any)}
+              size={22}
+              color={dark ? '#7CB0FF' : '#2563EB'}
+            />
+          </View>
+
           <View style={styles.headerText}>
             <Text style={[styles.course, dark && { color: '#F2F6FF' }]}>
               {reviewer.name}
@@ -380,7 +388,7 @@ export default function ReviewerDetailScreen() {
           />
 
           <ToolCard
-            icon="help-circle-outline"
+            icon="clipboard-outline"
             title="Generate Quiz"
             description="Test your knowledge"
             background="#E5F8FF"
@@ -510,7 +518,7 @@ function getMaterialIcon(
   }
 
   if (type === 'Quiz') {
-    return 'help-circle-outline';
+    return 'clipboard-outline';
   }
 
   return 'document-outline';
@@ -674,9 +682,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
 
+  reviewerHeaderIcon: {
+    width: 43,
+    height: 43,
+    borderRadius: 14,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#BFDBFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 10,
+  },
+
   headerText: {
     flex: 1,
-    marginLeft: 13,
+    marginLeft: 10,
   },
 
   course: {

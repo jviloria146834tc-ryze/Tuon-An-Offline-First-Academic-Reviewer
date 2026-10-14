@@ -329,12 +329,13 @@ async function upsertLocalReviewer(data: Record<string, unknown>): Promise<void>
     return;
   }
   await db.runAsync(
-    `INSERT INTO reviewers (reviewer_id, student_id, name, subject, description, mastery, due_cards, updated_at, synced_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `INSERT INTO reviewers (reviewer_id, student_id, name, subject, description, icon, mastery, due_cards, updated_at, synced_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
      ON CONFLICT(reviewer_id) DO UPDATE SET
        name = excluded.name,
        subject = excluded.subject,
        description = excluded.description,
+       icon = excluded.icon,
        mastery = excluded.mastery,
        due_cards = excluded.due_cards,
        updated_at = excluded.updated_at,
@@ -344,6 +345,7 @@ async function upsertLocalReviewer(data: Record<string, unknown>): Promise<void>
     String(data.name || 'Untitled Reviewer'),
     String(data.subject || 'General'),
     data.description ? String(data.description) : null,
+    String(data.icon || 'book-outline'),
     Number(data.mastery || 0),
     Number(data.due_cards || 0),
     toIsoString(data.updated_at)

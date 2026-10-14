@@ -214,7 +214,7 @@ export default function Dashboard() {
 
           <View style={[styles.subjectIcon, dark && { backgroundColor: '#102544' }]}>
             <Ionicons
-              name="globe-outline"
+              name={((firstDueReviewer?.icon as any) || 'book-outline')}
               size={27}
               color="#2563EB"
             />
@@ -265,10 +265,10 @@ export default function Dashboard() {
           </Pressable>
         </View>
 
-        {reviewers.slice(0, 3).map((reviewer, index) => (
+        {reviewers.slice(0, 3).map((reviewer) => (
           <ReviewerCard
             key={reviewer.reviewer_id}
-            icon={(['globe-outline', 'calculator-outline', 'phone-portrait-outline'] as const)[index]}
+            icon={((reviewer.icon || 'book-outline') as keyof typeof Ionicons.glyphMap)}
             title={`${reviewer.subject} - ${reviewer.name}`}
             subject={reviewer.description || reviewer.subject}
             progress={`${Math.round(reviewer.mastery)}%`}

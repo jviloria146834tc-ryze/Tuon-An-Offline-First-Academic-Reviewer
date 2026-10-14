@@ -174,9 +174,16 @@ export default function ReviewersScreen() {
                   </Text>
                 </View>
                 <View style={styles.reviewerContent}>
-                  <Text style={[styles.reviewerName, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
-                    {reviewer.name}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons
+                      name={((reviewer.icon || 'book-outline') as keyof typeof Ionicons.glyphMap)}
+                      size={18}
+                      color={dark ? '#7CB0FF' : '#2563EB'}
+                    />
+                    <Text style={[styles.reviewerName, { flex: 1 }, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                      {reviewer.name}
+                    </Text>
+                  </View>
                   <Text style={[styles.metadata, dark && { color: '#94A3B8' }]} numberOfLines={1}>
                     {reviewer.subject} · {reviewer.card_count} {reviewer.card_count === 1 ? 'card' : 'cards'} · {quizCount} {quizCount === 1 ? 'quiz' : 'quizzes'}
                   </Text>

@@ -15,7 +15,7 @@ import {
 
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { createReviewer } from '../../database/reviewers';
+import { createReviewer, REVIEWER_ICONS } from '../../database/reviewers';
 import { useAppTheme } from '../../utils/ThemeContext';
 
 export default function CreateReviewerScreen() {
@@ -23,6 +23,7 @@ export default function CreateReviewerScreen() {
   const [reviewerName, setReviewerName] = useState('');
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedIcon, setSelectedIcon] = useState('book-outline');
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -30,7 +31,7 @@ export default function CreateReviewerScreen() {
     if (!reviewerName.trim() || !subject.trim() || saving) return;
     setSaving(true);
     try {
-      await createReviewer({ name: reviewerName, subject, description });
+      await createReviewer({ name: reviewerName, subject, description, icon: selectedIcon });
       router.replace('/(tabs)/reviewers');
     } catch (error) {
       Alert.alert('Could not create reviewer', error instanceof Error ? error.message : 'Please try again.');
@@ -48,8 +49,14 @@ export default function CreateReviewerScreen() {
         {/* HEADER */}
         <View style={[styles.header, dark && { backgroundColor: '#111B2B', borderBottomColor: '#2B3A52' }]}>
           <Pressable
-            style={styles.backButton}
+            style={({ pressed }) => [
+              styles.backButton,
+              dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+              pressed && (dark ? { backgroundColor: '#1E2D44' } : { backgroundColor: '#EBF2FE' }),
+            ]}
             onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons
               name="chevron-back"
@@ -75,7 +82,7 @@ export default function CreateReviewerScreen() {
           <View style={styles.intro}>
             <View style={[styles.iconContainer, dark && { backgroundColor: '#172235' }]}>
               <Ionicons
-                name="book-outline"
+                name={selectedIcon as any}
                 size={32}
                 color="#2563EB"
               />
@@ -153,6 +160,53 @@ export default function CreateReviewerScreen() {
             <Text style={[styles.characterCount, dark && { color: '#64748B' }]}>
               {description.length}/250
             </Text>
+          </View>
+
+          {/* ICON PICKER */}
+          <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>
+            CHOOSE AN ICON
+          </Text>
+
+          <View style={[styles.iconGrid, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+            {REVIEWER_ICONS.map((item) => {
+              const isSelected = selectedIcon === item.icon;
+              return (
+                <Pressable
+                  key={item.icon}
+                  onPress={() => setSelectedIcon(item.icon)}
+                  style={[
+                    styles.iconTile,
+                    isSelected && (dark ? styles.iconTileSelectedDark : styles.iconTileSelected),
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${item.label} icon`}
+                >
+                  <View
+                    style={[
+                      styles.iconTileBadge,
+                      dark && { backgroundColor: '#111B2B' },
+                      isSelected && styles.iconTileBadgeSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name={item.icon as any}
+                      size={22}
+                      color={isSelected ? '#FFFFFF' : (dark ? '#7CB0FF' : '#2563EB')}
+                    />
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.iconTileLabel,
+                      dark && { color: '#AAB7CC' },
+                      isSelected && (dark ? { color: '#60A5FA', fontWeight: '800' } : styles.iconTileLabelSelected),
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           {/* REMINDER */}
@@ -264,7 +318,9 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: '#F4F7FC',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -375,6 +431,65 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 11,
     color: '#AAAAAA',
+  },
+
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 18,
+    padding: 10,
+    marginBottom: 21,
+    justifyContent: 'space-between',
+  },
+
+  iconTile: {
+    width: '23.5%',
+    alignItems: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    marginVertical: 4,
+  },
+
+  iconTileSelected: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#2563EB',
+  },
+
+  iconTileSelectedDark: {
+    backgroundColor: '#1E2D44',
+    borderWidth: 1.5,
+    borderColor: '#3B82F6',
+  },
+
+  iconTileBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#F0F5FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+
+  iconTileBadgeSelected: {
+    backgroundColor: '#2563EB',
+  },
+
+  iconTileLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#666666',
+    textAlign: 'center',
+  },
+
+  iconTileLabelSelected: {
+    color: '#2563EB',
+    fontWeight: '800',
   },
 
   reminderCard: {

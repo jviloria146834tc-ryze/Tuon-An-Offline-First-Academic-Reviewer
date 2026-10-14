@@ -2,18 +2,41 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Network from 'expo-network';
 import { createMaterial, getMaterialsByReviewer, SQLiteMaterial } from '../../../database/materials';
 import { saveQuiz, getQuizzesByReviewer, SQLiteQuiz, QuizQuestionInput } from '../../../database/quizzes';
 import { getReviewerById, SQLiteReviewer } from '../../../database/reviewers';
 import { useAppTheme } from '../../../utils/ThemeContext';
-import { generateQuizWithGemini } from '../../../utils/gemini';
+import { generateQuizWithGemini, getFriendlyAiErrorMessage } from '../../../utils/gemini';
 
 const QUESTION_TYPES = ['Multiple Choice', 'True / False', 'Identification'] as const;
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'] as const;
 const QUESTION_COUNTS = [5, 10, 15, 20, 30] as const;
 type TabType = 'generate' | 'quizzes';
-type SourceMode = 'all' | 'custom';
+
+function getQuizBadge(item: SQLiteQuiz): { type: string; difficulty?: string } {
+  if (item.material_content) {
+    try {
+      const parsed = JSON.parse(item.material_content);
+      if (parsed.question_type) {
+        return {
+          type: parsed.question_type,
+          difficulty: parsed.difficulty,
+        };
+      }
+    } catch {}
+  }
+  const lower = item.title.toLowerCase();
+  let type = 'Multiple Choice';
+  if (lower.includes('true / false') || lower.includes('true/false')) type = 'True / False';
+  else if (lower.includes('identification')) type = 'Identification';
+  let difficulty: string | undefined;
+  if (lower.includes('easy')) difficulty = 'Easy';
+  else if (lower.includes('medium')) difficulty = 'Medium';
+  else if (lower.includes('hard')) difficulty = 'Hard';
+  return { type, difficulty };
+}
 
 export default function QuizBuilderScreen() {
   const { dark } = useAppTheme();
@@ -24,8 +47,8 @@ export default function QuizBuilderScreen() {
   const [reviewer, setReviewer] = useState<SQLiteReviewer | null>(null);
   const [materials, setMaterials] = useState<SQLiteMaterial[]>([]);
   const [existingQuizzes, setExistingQuizzes] = useState<SQLiteQuiz[]>([]);
-  const [sourceMode, setSourceMode] = useState<SourceMode>('all');
   const [selectedMaterials, setSelectedMaterials] = useState<string[]>([]);
+  const [quizName, setQuizName] = useState('');
   const [questionType, setQuestionType] = useState<(typeof QUESTION_TYPES)[number]>('Multiple Choice');
   const [difficulty, setDifficulty] = useState<(typeof DIFFICULTIES)[number]>('Medium');
   const [questionCount, setQuestionCount] = useState<(typeof QUESTION_COUNTS)[number]>(10);
@@ -76,6 +99,20 @@ export default function QuizBuilderScreen() {
       return;
     }
 
+    try {
+      const net = await Network.getNetworkStateAsync();
+      if (net.isConnected === false || net.isInternetReachable === false) {
+        Alert.alert(
+          'Internet Connection Required',
+          'Generating a quiz with AI requires an active internet connection to connect to Google Gemini. Please check your Wi-Fi or mobile data and try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    } catch {
+      // Proceed if network state check fails
+    }
+
     setGenerating(true);
     try {
       const aggregatedContent = selectedItems.map(item => `${item.title}:\n${item.content}`).join('\n\n');
@@ -90,7 +127,8 @@ export default function QuizBuilderScreen() {
         return;
       }
 
-      const quizTitle = `${reviewer?.name ?? 'Reviewer'} - ${difficulty} ${questionType} Quiz`;
+      const defaultTitle = `${reviewer?.name ?? 'Reviewer'} - ${difficulty} ${questionType} Quiz`;
+      const quizTitle = quizName.trim() || defaultTitle;
       const materialId = await createMaterial({
         reviewer_id: reviewerId,
         title: quizTitle,
@@ -116,6 +154,7 @@ export default function QuizBuilderScreen() {
       });
 
       await loadData();
+      setQuizName('');
 
       Alert.alert('Quiz Ready!', `Successfully generated a ${generatedQuestions.length}-question quiz!`, [
         {
@@ -134,7 +173,8 @@ export default function QuizBuilderScreen() {
         },
       ]);
     } catch (error) {
-      Alert.alert('Quiz Generation Error', error instanceof Error ? error.message : 'Please check your connection and API key.');
+      const { title, message } = getFriendlyAiErrorMessage(error, 'Could not generate quiz questions.');
+      Alert.alert(title, message);
     } finally {
       setGenerating(false);
     }
@@ -187,7 +227,7 @@ export default function QuizBuilderScreen() {
           onPress={() => setActiveTab('quizzes')}
         >
           <Ionicons
-            name="help-circle-outline"
+            name="clipboard-outline"
             size={18}
             color={activeTab === 'quizzes' ? '#2563EB' : dark ? '#64748B' : '#94A3B8'}
           />
@@ -210,60 +250,52 @@ export default function QuizBuilderScreen() {
             contentContainerStyle={styles.content}
             showsVerticalScrollIndicator={false}
           >
-            {/* SOURCE MATERIAL */}
-            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>SOURCE MATERIAL</Text>
-            <View style={styles.radioGroup}>
-              <RadioRow
-                dark={dark}
-                label="All Study Notes"
-                selected={sourceMode === 'all'}
-                onPress={() => {
-                  setSourceMode('all');
-                  setSelectedMaterials(materials.map(m => m.material_id));
-                }}
-              />
-              <RadioRow
-                dark={dark}
-                label="Select Specific Notes"
-                selected={sourceMode === 'custom'}
-                onPress={() => setSourceMode('custom')}
+            {/* QUIZ NAME */}
+            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>QUIZ NAME (OPTIONAL)</Text>
+            <View style={[styles.quizInputWrap, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+              <Ionicons name="bookmark-outline" size={20} color="#94A3B8" style={{ marginRight: 10 }} />
+              <TextInput
+                style={[styles.quizInput, dark && { color: '#F2F6FF' }]}
+                value={quizName}
+                onChangeText={setQuizName}
+                placeholder={`e.g. ${reviewer?.name ?? 'Reviewer'} - ${difficulty} Quiz`}
+                placeholderTextColor="#94A3B8"
               />
             </View>
 
-            {sourceMode === 'custom' && (
-              <View style={[styles.materialPicker, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-                <Text style={[styles.pickerTitle, dark && { color: '#94A3B8' }]}>Choose notes to cover:</Text>
-                {loading ? (
-                  <Text style={[styles.emptySource, dark && { color: '#64748B' }]}>Loading materials...</Text>
-                ) : materials.length === 0 ? (
-                  <Text style={[styles.emptySource, dark && { color: '#64748B' }]}>No study notes available.</Text>
-                ) : (
-                  materials.map(material => {
-                    const checked = selectedMaterials.includes(material.material_id);
-                    return (
-                      <Pressable
-                        key={material.material_id}
-                        style={[
-                          styles.materialRow,
-                          dark && { backgroundColor: '#0F172A', borderColor: '#1E293B' },
-                          checked && (dark ? { backgroundColor: '#102A4C', borderColor: '#2563EB' } : styles.materialRowChecked),
-                        ]}
-                        onPress={() => toggleMaterial(material.material_id)}
-                      >
-                        <Ionicons
-                          name={checked ? 'checkbox' : 'square-outline'}
-                          size={20}
-                          color={checked ? '#2563EB' : '#94A3B8'}
-                        />
-                        <Text style={[styles.materialTitle, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
-                          {material.title}
-                        </Text>
-                      </Pressable>
-                    );
-                  })
-                )}
-              </View>
-            )}
+            {/* SOURCE MATERIALS */}
+            <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>SOURCE MATERIALS</Text>
+            <View style={[styles.materialPicker, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+              {loading ? (
+                <Text style={styles.emptySource}>Loading materials...</Text>
+              ) : materials.length === 0 ? (
+                <Text style={styles.emptySource}>No saved study materials in this reviewer yet.</Text>
+              ) : (
+                materials.map(material => {
+                  const checked = selectedMaterials.includes(material.material_id);
+                  return (
+                    <Pressable
+                      key={material.material_id}
+                      style={[
+                        styles.materialRow,
+                        dark && { backgroundColor: '#0F172A', borderColor: '#1E293B' },
+                        checked && (dark ? { backgroundColor: '#102A4C', borderColor: '#2563EB' } : styles.materialRowChecked),
+                      ]}
+                      onPress={() => toggleMaterial(material.material_id)}
+                    >
+                      <Ionicons
+                        name={checked ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={checked ? '#2563EB' : '#94A3B8'}
+                      />
+                      <Text style={[styles.materialTitle, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                        {material.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })
+              )}
+            </View>
 
             {/* QUESTION TYPE */}
             <Text style={[styles.sectionLabel, dark && { color: '#94A3B8' }]}>QUESTION TYPE</Text>
@@ -339,7 +371,7 @@ export default function QuizBuilderScreen() {
               <View style={styles.summaryTopRow}>
                 <Ionicons name="document-text-outline" size={18} color="#2563EB" />
                 <Text style={[styles.summaryTitle, dark && { color: '#94A3B8' }]}>
-                  {`PULLING FROM (${selectedItems.length} ${selectedItems.length === 1 ? 'NOTE' : 'NOTES'})`}
+                  {`PULLING FROM (${selectedItems.length} ${selectedItems.length === 1 ? 'MATERIAL' : 'MATERIALS'})`}
                 </Text>
               </View>
               {selectedItems.length > 0 ? (
@@ -353,7 +385,7 @@ export default function QuizBuilderScreen() {
                 ))
               ) : (
                 <Text style={[styles.emptySource, dark && { color: '#64748B' }]}>
-                  Please select at least one study note above.
+                  Please select at least one study material above.
                 </Text>
               )}
               {selectedItems.length > 3 && (
@@ -401,42 +433,59 @@ export default function QuizBuilderScreen() {
           </View>
 
           {existingQuizzes.length > 0 ? (
-            existingQuizzes.map(item => (
-              <Pressable
-                key={item.quiz_id}
-                style={({ pressed }) => [
-                  styles.quizCard,
-                  dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => {
-                  router.push({
-                    pathname: '/reviewer/[id]/quiz',
-                    params: { id: reviewerId, materialId: item.material_id, quizId: item.quiz_id },
-                  });
-                }}
-              >
-                <View style={[styles.quizCardIcon, dark && { backgroundColor: '#102544' }]}>
-                  <Ionicons name="help-circle" size={24} color="#00A8E8" />
-                </View>
-                <View style={styles.quizCardContent}>
-                  <Text style={[styles.quizCardTitle, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
-                    {item.title}
-                  </Text>
-                  <Text style={[styles.quizCardSubtitle, dark && { color: '#94A3B8' }]}>
-                    {item.question_count} Questions
-                  </Text>
-                </View>
-                <View style={[styles.takeBadge, dark && { backgroundColor: '#102544' }]}>
-                  <Text style={[styles.takeBadgeText, dark && { color: '#7CB0FF' }]}>Take Quiz</Text>
-                  <Ionicons name="chevron-forward" size={16} color={dark ? '#7CB0FF' : '#2563EB'} />
-                </View>
-              </Pressable>
-            ))
+            existingQuizzes.map(item => {
+              const badge = getQuizBadge(item);
+              return (
+                <Pressable
+                  key={item.quiz_id}
+                  style={({ pressed }) => [
+                    styles.quizCard,
+                    dark && { backgroundColor: '#172235', borderColor: '#2B3A52' },
+                    pressed && styles.pressed,
+                  ]}
+                  onPress={() => {
+                    router.push({
+                      pathname: '/reviewer/[id]/quiz',
+                      params: { id: reviewerId, materialId: item.material_id, quizId: item.quiz_id },
+                    });
+                  }}
+                >
+                  <View style={[styles.quizCardIcon, dark && { backgroundColor: '#102544' }]}>
+                    <Ionicons name="clipboard" size={24} color="#00A8E8" />
+                  </View>
+                  <View style={styles.quizCardContent}>
+                    <Text style={[styles.quizCardTitle, dark && { color: '#F2F6FF' }]} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <View style={styles.quizMetaRow}>
+                      <Text style={[styles.quizCardSubtitle, dark && { color: '#94A3B8' }]}>
+                        {item.question_count} Qs
+                      </Text>
+                      <View style={[styles.typeBadge, dark && { backgroundColor: '#102A4C', borderColor: '#2563EB' }]}>
+                        <Text style={[styles.typeBadgeText, dark && { color: '#7CB0FF' }]}>
+                          {badge.type}
+                        </Text>
+                      </View>
+                      {badge.difficulty && (
+                        <View style={[styles.difficultyBadge, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
+                          <Text style={[styles.difficultyBadgeText, dark && { color: '#AAB7CC' }]}>
+                            {badge.difficulty}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  <View style={[styles.takeBadge, dark && { backgroundColor: '#102544' }]}>
+                    <Text style={[styles.takeBadgeText, dark && { color: '#7CB0FF' }]}>Take</Text>
+                    <Ionicons name="chevron-forward" size={16} color={dark ? '#7CB0FF' : '#2563EB'} />
+                  </View>
+                </Pressable>
+              );
+            })
           ) : (
             <View style={[styles.emptyContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
               <View style={[styles.emptyIconWrap, dark && { backgroundColor: '#102544' }]}>
-                <Ionicons name="help-circle-outline" size={36} color="#00A8E8" />
+                <Ionicons name="clipboard-outline" size={36} color="#00A8E8" />
               </View>
               <Text style={[styles.emptyTitle, dark && { color: '#F2F6FF' }]}>No quizzes generated yet</Text>
               <Text style={[styles.emptySubtitle, dark && { color: '#94A3B8' }]}>
@@ -626,12 +675,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     marginBottom: 14,
     gap: 8,
-  },
-  pickerTitle: {
-    color: '#64748B',
-    fontSize: 13,
-    fontWeight: '800',
-    marginBottom: 4,
   },
   materialRow: {
     minHeight: 44,
@@ -833,9 +876,58 @@ const styles = StyleSheet.create({
     color: '#15264B',
   },
   quizCardSubtitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#64748B',
-    marginTop: 4,
+    fontWeight: '600',
+  },
+  quizMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 5,
+    flexWrap: 'wrap',
+  },
+  typeBadge: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  typeBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  difficultyBadge: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  difficultyBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  quizInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#DCE5F2',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 14,
+    height: 52,
+  },
+  quizInput: {
+    flex: 1,
+    color: '#15264B',
+    fontSize: 15,
     fontWeight: '600',
   },
   takeBadge: {

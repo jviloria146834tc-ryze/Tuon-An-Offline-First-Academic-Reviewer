@@ -1,7 +1,112 @@
+import * as Network from 'expo-network';
+
+export class OfflineError extends Error {
+  constructor(
+    message = 'Generating quiz questions and flashcards requires an active internet connection. Please connect to Wi-Fi or mobile data and try again.'
+  ) {
+    super(message);
+    this.name = 'OfflineError';
+  }
+}
+
+export class GeminiApiError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'GeminiApiError';
+    this.status = status;
+  }
+}
+
 /**
- * Google Gemini API Client for Tuon Reviewer.
- * Uses direct fetch to the Gemini REST API for maximum compatibility with React Native/Expo.
+ * Returns a human-friendly title and message for AI errors, differentiating offline vs API errors.
  */
+export function getFriendlyAiErrorMessage(
+  error: unknown,
+  fallbackMessage = 'Could not complete AI generation.'
+): { title: string; message: string; isOffline: boolean } {
+  if (error instanceof OfflineError) {
+    return {
+      title: 'No Internet Connection',
+      message: error.message,
+      isOffline: true,
+    };
+  }
+
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const lower = rawMessage.toLowerCase();
+
+  if (
+    lower.includes('network request failed') ||
+    lower.includes('offline') ||
+    lower.includes('internet') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('econnrefused') ||
+    lower.includes('timed out') ||
+    lower.includes('networkerror')
+  ) {
+    return {
+      title: 'No Internet Connection',
+      message:
+        'Generating quiz questions and flashcards with AI requires an active internet connection. Please connect to Wi-Fi or mobile data and try again.',
+      isOffline: true,
+    };
+  }
+
+  if (lower.includes('api key is not configured') || lower.includes('gemini api key')) {
+    return {
+      title: 'AI Setup Required',
+      message: 'Gemini API key is not configured. Please ensure EXPO_PUBLIC_GEMINI_API_KEY is defined in your .env file.',
+      isOffline: false,
+    };
+  }
+
+  if (lower.includes('authorization') || lower.includes('api key') || lower.includes('403') || lower.includes('400')) {
+    return {
+      title: 'AI Authorization Failed',
+      message: 'The Gemini API key appears invalid or expired. Please verify your Gemini API key.',
+      isOffline: false,
+    };
+  }
+
+  if (lower.includes('rate limit') || lower.includes('quota') || lower.includes('429')) {
+    return {
+      title: 'Rate Limit Reached',
+      message: 'Gemini AI service rate limit reached. Please wait a minute and try again.',
+      isOffline: false,
+    };
+  }
+
+  if (lower.includes('500') || lower.includes('503') || lower.includes('server')) {
+    return {
+      title: 'Service Temporarily Unavailable',
+      message: 'Google Gemini AI servers are currently busy or temporarily down. Please try again in a few moments.',
+      isOffline: false,
+    };
+  }
+
+  return {
+    title: 'Generation Error',
+    message: rawMessage || fallbackMessage,
+    isOffline: false,
+  };
+}
+
+async function checkInternetConnection(): Promise<void> {
+  try {
+    const netState = await Network.getNetworkStateAsync();
+    if (netState.isConnected === false || netState.isInternetReachable === false) {
+      throw new OfflineError(
+        'You are currently offline. Generating quizzes and flashcards with AI requires an active internet connection.'
+      );
+    }
+  } catch (err) {
+    if (err instanceof OfflineError) {
+      throw err;
+    }
+    // If checking network state itself throws an unexpected error, continue to fetch
+  }
+}
 
 export type ExtractedFlashcard = {
   question: string;
@@ -29,6 +134,8 @@ function getGeminiApiKey(): string | null {
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
 
 async function callGemini(prompt: string): Promise<string> {
+  await checkInternetConnection();
+
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw new Error('Gemini API key is not configured. Please check EXPO_PUBLIC_GEMINI_API_KEY in your .env file.');
@@ -36,27 +143,50 @@ async function callGemini(prompt: string): Promise<string> {
 
   const endpoint = `${GEMINI_API_URL}?key=${apiKey}`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [{ text: prompt }],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json',
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [{ text: prompt }],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+  } catch (fetchErr) {
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    if (
+      msg.includes('Network request failed') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('NetworkError') ||
+      msg.includes('Aborted')
+    ) {
+      throw new OfflineError(
+        'Could not reach Google Gemini. Please check your internet connection and try again.'
+      );
+    }
+    throw new Error(`Connection error: ${msg}`);
+  }
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errorBody || response.statusText}`);
+    let friendlyMessage = `AI generation service error (${response.status}).`;
+    if (response.status === 400 || response.status === 403) {
+      friendlyMessage = 'AI authorization failed. Please check that your Gemini API key is valid and has Generative Language API enabled.';
+    } else if (response.status === 429) {
+      friendlyMessage = 'Gemini AI rate limit or quota exceeded. Please wait a moment before trying again.';
+    } else if (response.status >= 500) {
+      friendlyMessage = 'Google Gemini servers are currently experiencing high traffic or temporary downtime. Please try again shortly.';
+    }
+    throw new GeminiApiError(friendlyMessage, response.status);
   }
 
   const data = await response.json();
@@ -186,6 +316,8 @@ export async function extractDocumentNotesWithGemini(
   base64Data: string,
   mimeType: string
 ): Promise<string> {
+  await checkInternetConnection();
+
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw new Error('Gemini API key is not configured. Please check EXPO_PUBLIC_GEMINI_API_KEY in your .env file.');
@@ -193,36 +325,59 @@ export async function extractDocumentNotesWithGemini(
 
   const endpoint = `${GEMINI_API_URL}?key=${apiKey}`;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          parts: [
-            {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType || 'application/pdf',
-              },
-            },
-            {
-              text: 'Please extract the key academic study content and comprehensive notes from this document. Provide clear, structured study notes formatted for student review, including main topics, definitions, concepts, and key details. Do not output conversational preamble.',
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    }),
-  });
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inlineData: {
+                  data: base64Data,
+                  mimeType: mimeType || 'application/pdf',
+                },
+              },
+              {
+                text: 'Please extract the key academic study content and comprehensive notes from this document. Provide clear, structured study notes formatted for student review, including main topics, definitions, concepts, and key details. Do not output conversational preamble.',
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
+        },
+      }),
+    });
+  } catch (fetchErr) {
+    const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    if (
+      msg.includes('Network request failed') ||
+      msg.includes('Failed to fetch') ||
+      msg.includes('NetworkError') ||
+      msg.includes('Aborted')
+    ) {
+      throw new OfflineError(
+        'Could not reach Google Gemini. Please check your internet connection and try again.'
+      );
+    }
+    throw new Error(`Connection error: ${msg}`);
+  }
 
   if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Gemini document processing error (${response.status}): ${errorBody || response.statusText}`);
+    let friendlyMessage = `AI document processing error (${response.status}).`;
+    if (response.status === 400 || response.status === 403) {
+      friendlyMessage = 'AI authorization failed. Please check that your Gemini API key is valid.';
+    } else if (response.status === 429) {
+      friendlyMessage = 'Gemini AI rate limit exceeded. Please wait a moment before trying again.';
+    } else if (response.status >= 500) {
+      friendlyMessage = 'Google Gemini servers are temporarily unavailable. Please try again shortly.';
+    }
+    throw new GeminiApiError(friendlyMessage, response.status);
   }
 
   const data = await response.json();
