@@ -140,11 +140,11 @@ export default function SettingsScreen() {
           </Text>
 
           <Pressable style={[styles.profileCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]} onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="Edit personal profile">
-            <View style={styles.avatar}>
+            <View style={[styles.avatar, dark && { backgroundColor: '#102544' }]}>
               <Ionicons
                 name="person"
                 size={28}
-                color="#2563EB"
+                color={dark ? '#7CB0FF' : '#2563EB'}
               />
             </View>
 
@@ -163,7 +163,7 @@ export default function SettingsScreen() {
             <Ionicons
               name="chevron-forward"
               size={20}
-              color="#BBBBBB"
+              color={dark ? '#64748B' : '#BBBBBB'}
             />
           </Pressable>
 
@@ -181,7 +181,7 @@ export default function SettingsScreen() {
                       ? dark ? '#331B10' : '#FFF4ED'
                       : !syncInfo?.isConfigured
                       ? dark ? '#1C2433' : '#F4F7FC'
-                      : '#E5F8FF',
+                      : dark ? '#102544' : '#E5F8FF',
                   },
                 ]}
               >
@@ -192,8 +192,8 @@ export default function SettingsScreen() {
                     !isOnline
                       ? '#EA580C'
                       : !syncInfo?.isConfigured
-                      ? '#999999'
-                      : '#00A8E8'
+                      ? (dark ? '#64748B' : '#999999')
+                      : (dark ? '#7CB0FF' : '#00A8E8')
                   }
                 />
               </View>
@@ -486,8 +486,8 @@ function DarkModeRow() {
   const { dark, setDark } = useAppTheme();
   return (
     <View style={styles.settingRow}>
-      <View style={[styles.settingIcon, { backgroundColor: '#E5F8FF' }]}>
-        <Ionicons name="moon-outline" size={21} color="#0087C4" />
+      <View style={[styles.settingIcon, { backgroundColor: dark ? '#102544' : '#E5F8FF' }]}>
+        <Ionicons name={dark ? 'moon' : 'moon-outline'} size={21} color={dark ? '#7CB0FF' : '#0087C4'} />
       </View>
       <View style={styles.settingContent}>
         <Text style={[styles.settingTitle, dark && { color: '#F2F6FF' }]}>Dark Mode</Text>
