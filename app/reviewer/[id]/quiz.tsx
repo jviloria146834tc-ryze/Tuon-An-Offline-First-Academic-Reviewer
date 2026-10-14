@@ -155,10 +155,10 @@ export default function QuizScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.secondaryButton}
+          style={[styles.secondaryButton, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
           onPress={() => router.back()}
         >
-          <Text style={styles.secondaryButtonText}>
+          <Text style={[styles.secondaryButtonText, dark && { color: '#F2F6FF' }]}>
             Finish Review
           </Text>
         </TouchableOpacity>
@@ -179,7 +179,7 @@ export default function QuizScreen() {
           <Ionicons name="close" size={25} color={dark ? '#F2F6FF' : '#555'} />
         </TouchableOpacity>
 
-        <View style={styles.progressBar}>
+        <View style={[styles.progressBar, dark && { backgroundColor: '#1E293B' }]}>
           <View
             style={[
               styles.progressFill,
@@ -188,7 +188,7 @@ export default function QuizScreen() {
           />
         </View>
 
-        <Text style={styles.progressText}>
+        <Text style={[styles.progressText, dark && { color: '#AAB7CC' }]}>
           {currentIndex + 1}/{questions.length}
         </Text>
       </View>
@@ -241,36 +241,41 @@ export default function QuizScreen() {
               const isSelected = selectedAnswer === index;
               const isCorrect = question.answer === index;
 
-              let choiceStyle = dark ? { ...styles.choice, backgroundColor: '#172235', borderColor: '#2B3A52' } : styles.choice;
-              let textStyle = dark ? { ...styles.choiceText, color: '#F2F6FF' } : styles.choiceText;
+              let choiceStyle: any = dark ? { ...styles.choice, backgroundColor: '#172235', borderColor: '#2B3A52' } : styles.choice;
+              let textStyle: any = dark ? { ...styles.choiceText, color: '#F2F6FF' } : styles.choiceText;
 
               if (answered) {
                 if (isCorrect) {
-                  choiceStyle = {
-                    ...styles.choice,
-                    ...styles.correctChoice,
-                  };
+                  choiceStyle = [
+                    styles.choice,
+                    styles.correctChoice,
+                    dark && { backgroundColor: '#0F291E', borderColor: '#10B981' },
+                  ];
 
-                  textStyle = {
-                    ...styles.choiceText,
-                    ...styles.correctChoiceText,
-                  };
+                  textStyle = [
+                    styles.choiceText,
+                    styles.correctChoiceText,
+                    dark && { color: '#6EE7B7' },
+                  ];
                 } else if (isSelected) {
-                  choiceStyle = {
-                    ...styles.choice,
-                    ...styles.wrongChoice,
-                  };
+                  choiceStyle = [
+                    styles.choice,
+                    styles.wrongChoice,
+                    dark && { backgroundColor: '#261214', borderColor: '#EF4444' },
+                  ];
 
-                  textStyle = {
-                    ...styles.choiceText,
-                    ...styles.wrongChoiceText,
-                  };
+                  textStyle = [
+                    styles.choiceText,
+                    styles.wrongChoiceText,
+                    dark && { color: '#FCA5A5' },
+                  ];
                 }
               } else if (isSelected) {
-                choiceStyle = {
-                  ...styles.choice,
-                  ...styles.selectedChoice,
-                };
+                choiceStyle = [
+                  styles.choice,
+                  styles.selectedChoice,
+                  dark && { backgroundColor: '#102A4C', borderColor: '#2563EB' },
+                ];
               }
 
               return (
@@ -280,8 +285,8 @@ export default function QuizScreen() {
                   style={choiceStyle}
                   onPress={() => selectAnswer(index)}
                 >
-                  <View style={styles.choiceLetter}>
-                    <Text style={styles.choiceLetterText}>
+                  <View style={[styles.choiceLetter, dark && { backgroundColor: '#102544' }]}>
+                    <Text style={[styles.choiceLetterText, dark && { color: '#AAB7CC' }]}>
                       {String.fromCharCode(65 + index)}
                     </Text>
                   </View>
@@ -318,8 +323,8 @@ export default function QuizScreen() {
             style={[
               styles.feedbackCard,
               selectedAnswer === question.answer
-                ? styles.correctFeedback
-                : styles.wrongFeedback,
+                ? [styles.correctFeedback, dark && { backgroundColor: '#0F291E', borderColor: '#065F46', borderWidth: 1 }]
+                : [styles.wrongFeedback, dark && { backgroundColor: '#261214', borderColor: '#7F1D1D', borderWidth: 1 }],
             ]}
           >
             <Ionicons
@@ -331,19 +336,19 @@ export default function QuizScreen() {
               size={25}
               color={
                 selectedAnswer === question.answer
-                  ? "#2563EB"
-                  : "#FF4B4B"
+                  ? (dark ? "#34D399" : "#2563EB")
+                  : (dark ? "#FF6B6B" : "#FF4B4B")
               }
             />
 
             <View style={styles.feedbackContent}>
-              <Text style={styles.feedbackTitle}>
+              <Text style={[styles.feedbackTitle, dark && { color: '#F2F6FF' }]}>
                 {selectedAnswer === question.answer
                   ? "Correct!"
                   : "Not quite"}
               </Text>
 
-              <Text style={styles.feedbackText}>
+              <Text style={[styles.feedbackText, dark && { color: '#CBD5E1' }]}>
                 {selectedAnswer === question.answer
                   ? "Nice work! You remembered this concept."
                   : `The correct answer is: ${

@@ -246,7 +246,7 @@ export default function QuizBuilderScreen() {
                         style={[
                           styles.materialRow,
                           dark && { backgroundColor: '#0F172A', borderColor: '#1E293B' },
-                          checked && styles.materialRowChecked,
+                          checked && (dark ? { backgroundColor: '#102A4C', borderColor: '#2563EB' } : styles.materialRowChecked),
                         ]}
                         onPress={() => toggleMaterial(material.material_id)}
                       >
@@ -416,7 +416,7 @@ export default function QuizBuilderScreen() {
                   });
                 }}
               >
-                <View style={styles.quizCardIcon}>
+                <View style={[styles.quizCardIcon, dark && { backgroundColor: '#102544' }]}>
                   <Ionicons name="help-circle" size={24} color="#00A8E8" />
                 </View>
                 <View style={styles.quizCardContent}>
@@ -427,15 +427,15 @@ export default function QuizBuilderScreen() {
                     {item.question_count} Questions
                   </Text>
                 </View>
-                <View style={styles.takeBadge}>
-                  <Text style={styles.takeBadgeText}>Take Quiz</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+                <View style={[styles.takeBadge, dark && { backgroundColor: '#102544' }]}>
+                  <Text style={[styles.takeBadgeText, dark && { color: '#7CB0FF' }]}>Take Quiz</Text>
+                  <Ionicons name="chevron-forward" size={16} color={dark ? '#7CB0FF' : '#2563EB'} />
                 </View>
               </Pressable>
             ))
           ) : (
             <View style={[styles.emptyContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-              <View style={styles.emptyIconWrap}>
+              <View style={[styles.emptyIconWrap, dark && { backgroundColor: '#102544' }]}>
                 <Ionicons name="help-circle-outline" size={36} color="#00A8E8" />
               </View>
               <Text style={[styles.emptyTitle, dark && { color: '#F2F6FF' }]}>No quizzes generated yet</Text>

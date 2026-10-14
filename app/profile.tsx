@@ -42,9 +42,9 @@ export default function ProfileScreen() {
       <Pressable onPress={() => router.back()} accessibilityRole="button"><Text style={[styles.back, dark && { color: '#7CB0FF' }]}>‹  Settings</Text></Pressable>
       <Text style={[styles.title, dark && { color: '#F2F6FF' }]}>Personal Profile</Text>
       <Text style={[styles.help, dark && { color: '#AAB7CC' }]}>Update the name shown in TUON.</Text>
-      <Text style={styles.label}>NAME</Text>
+      <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>NAME</Text>
       <TextInput value={name} onChangeText={setName} placeholder="Your name" placeholderTextColor={dark ? '#8090A8' : '#9BA6B8'} style={[styles.input, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#F2F6FF' }]} autoCapitalize="words" returnKeyType="done" />
-      <Text style={styles.label}>EMAIL</Text>
+      <Text style={[styles.label, dark && { color: '#AAB7CC' }]}>EMAIL</Text>
       <TextInput value={user?.email || ''} placeholder="Not connected" placeholderTextColor={dark ? '#8090A8' : '#9BA6B8'} editable={false} style={[styles.input, styles.readOnly, dark && { backgroundColor: '#172235', borderColor: '#2B3A52', color: '#AAB7CC' }]} />
       <Pressable onPress={save} disabled={saving} style={[styles.save, saving && { opacity: 0.65 }]}>
         {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save profile</Text>}

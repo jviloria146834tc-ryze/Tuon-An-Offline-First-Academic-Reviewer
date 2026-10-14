@@ -667,7 +667,7 @@ export default function AddMaterialScreen() {
         <View style={styles.captureModalOverlay}>
           <View style={[styles.captureModalContent, dark && { backgroundColor: '#111B2B', borderColor: '#2B3A52' }]}>
             <View style={styles.captureModalHeader}>
-              <View style={styles.captureModalIcon}>
+              <View style={[styles.captureModalIcon, dark && { backgroundColor: '#2D2305' }]}>
                 <Ionicons name="camera" size={22} color="#D79A00" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
@@ -693,7 +693,7 @@ export default function AddMaterialScreen() {
                 style={[styles.captureOptionCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
                 onPress={handleCameraCapture}
               >
-                <View style={[styles.captureOptionIconWrap, { backgroundColor: '#FFF5D6' }]}>
+                <View style={[styles.captureOptionIconWrap, { backgroundColor: dark ? '#2D2305' : '#FFF5D6' }]}>
                   <Ionicons name="camera" size={24} color="#D79A00" />
                 </View>
                 <View style={styles.captureOptionTextWrap}>
@@ -711,7 +711,7 @@ export default function AddMaterialScreen() {
                 style={[styles.captureOptionCard, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}
                 onPress={handleGalleryCapture}
               >
-                <View style={[styles.captureOptionIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                <View style={[styles.captureOptionIconWrap, { backgroundColor: dark ? '#102544' : '#EFF6FF' }]}>
                   <Ionicons name="images" size={24} color="#2563EB" />
                 </View>
                 <View style={styles.captureOptionTextWrap}>

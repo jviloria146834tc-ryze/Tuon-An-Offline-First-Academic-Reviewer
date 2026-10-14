@@ -285,7 +285,7 @@ export default function FlashcardGeneratorScreen() {
                           style={[
                             styles.materialRow,
                             dark && { backgroundColor: '#0F172A', borderColor: '#1E293B' },
-                            checked && styles.materialRowChecked,
+                            checked && (dark ? { backgroundColor: '#102A4C', borderColor: '#2563EB' } : styles.materialRowChecked),
                           ]}
                           onPress={() => toggleMaterial(material.material_id)}
                         >
@@ -365,6 +365,7 @@ export default function FlashcardGeneratorScreen() {
                 <Pressable
                   style={[
                     styles.addCardButton,
+                    dark && { backgroundColor: '#102544', borderColor: '#2563EB' },
                     (!term.trim() || !definition.trim()) && styles.disabled,
                   ]}
                   onPress={addDraftCard}
@@ -412,7 +413,7 @@ export default function FlashcardGeneratorScreen() {
                 >
                   <Text style={styles.previewMiniLabel}>FRONT</Text>
                   <Text style={[styles.previewTerm, dark && { color: '#F2F6FF' }]}>{card.question}</Text>
-                  <View style={styles.previewDivider} />
+                  <View style={[styles.previewDivider, dark && { backgroundColor: '#2B3A52' }]} />
                   <Text style={styles.previewMiniLabel}>BACK</Text>
                   <Text style={[styles.previewDefinition, dark && { color: '#CBD5E1' }]}>{card.answer}</Text>
                   <Pressable
@@ -483,7 +484,7 @@ export default function FlashcardGeneratorScreen() {
                   router.push(`/reviewer/${reviewerId}/flashcards?materialId=${item.material_id}`);
                 }}
               >
-                <View style={styles.deckCardIcon}>
+                <View style={[styles.deckCardIcon, dark && { backgroundColor: '#102544' }]}>
                   <Ionicons name="albums" size={24} color="#0087C4" />
                 </View>
                 <View style={styles.deckCardContent}>
@@ -494,15 +495,15 @@ export default function FlashcardGeneratorScreen() {
                     {item.card_count} {item.card_count === 1 ? 'card' : 'cards'} · SRS Ready
                   </Text>
                 </View>
-                <View style={styles.studyBadge}>
-                  <Text style={styles.studyBadgeText}>Study</Text>
-                  <Ionicons name="chevron-forward" size={16} color="#2563EB" />
+                <View style={[styles.studyBadge, dark && { backgroundColor: '#102544' }]}>
+                  <Text style={[styles.studyBadgeText, dark && { color: '#7CB0FF' }]}>Study</Text>
+                  <Ionicons name="chevron-forward" size={16} color={dark ? '#7CB0FF' : '#2563EB'} />
                 </View>
               </Pressable>
             ))
           ) : (
             <View style={[styles.emptyContainer, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}>
-              <View style={styles.emptyIconWrap}>
+              <View style={[styles.emptyIconWrap, dark && { backgroundColor: '#102544' }]}>
                 <Ionicons name="albums-outline" size={36} color="#0087C4" />
               </View>
               <Text style={[styles.emptyTitle, dark && { color: '#F2F6FF' }]}>No flashcard decks yet</Text>

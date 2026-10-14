@@ -83,7 +83,7 @@ export default function AnalyticsScreen() {
 
 function Stat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
   const { dark } = useAppTheme();
-  return <View style={[styles.stat, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Ionicons name={icon} size={23} color="#2563EB" /><Text style={[styles.statValue, dark && { color: '#F2F6FF' }]}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+  return <View style={[styles.stat, dark && { backgroundColor: '#172235', borderColor: '#2B3A52' }]}><Ionicons name={icon} size={23} color="#2563EB" /><Text style={[styles.statValue, dark && { color: '#F2F6FF' }]}>{value}</Text><Text style={[styles.statLabel, dark && { color: '#AAB7CC' }]}>{label}</Text></View>;
 }
 
 const styles = StyleSheet.create({

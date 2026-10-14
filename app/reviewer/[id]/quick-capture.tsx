@@ -138,7 +138,7 @@ export default function QuickCaptureScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.iconContainer}>
+        <View style={[styles.iconContainer, dark && { backgroundColor: '#2D2305' }]}>
           <Ionicons name="camera-outline" size={32} color="#D79A00" />
         </View>
 
