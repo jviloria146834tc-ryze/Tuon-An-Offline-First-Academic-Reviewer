@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
   View,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getReviewers, SQLiteReviewer } from '../database/reviewers';
@@ -30,8 +29,6 @@ import {
   scheduleNotificationForReminder,
   cancelScheduledNotifications,
   requestNotificationPermissionsAsync,
-  sendInstantTestNotification,
-  isExpoGo,
 } from '../utils/notifications';
 import { useAppTheme } from '../utils/ThemeContext';
 
@@ -355,43 +352,10 @@ export default function NotificationsScreen() {
             <Text style={styles.backText}>Back</Text>
           </Pressable>
 
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable
-              style={[styles.addReminderTopBtn, { backgroundColor: '#475569' }]}
-              onPress={async () => {
-                if (isExpoGo() && Platform.OS === 'android') {
-                  Alert.alert(
-                    'Expo Go Limitation',
-                    'Android notifications from expo-notifications are restricted inside Expo Go by Expo SDK 53+. To receive native system notification banners & sounds on your phone, test with a Development Build (npx expo run:android) or standalone APK.'
-                  );
-                  return;
-                }
-                const hasPerm = await requestNotificationPermissionsAsync();
-                if (!hasPerm) {
-                  Alert.alert(
-                    'Permission Blocked',
-                    'Notification permissions are not enabled. Please enable them in your phone Settings > Apps > Tuon (or Expo Go).'
-                  );
-                  return;
-                }
-                const notifId = await sendInstantTestNotification();
-                if (notifId) {
-                  Alert.alert('Test Notification Sent', 'You should see a notification banner with sound right now!');
-                } else {
-                  Alert.alert('Notice', 'Notification could not be fired. Check device settings or run a Development Build.');
-                }
-              }}
-              accessibilityRole="button"
-            >
-              <Ionicons name="notifications-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-              <Text style={styles.addReminderTopText}>Test</Text>
-            </Pressable>
-
-            <Pressable style={styles.addReminderTopBtn} onPress={openAddModal} accessibilityRole="button">
-              <Ionicons name="add" size={18} color="#FFF" style={{ marginRight: 4 }} />
-              <Text style={styles.addReminderTopText}>Add Reminder</Text>
-            </Pressable>
-          </View>
+          <Pressable style={styles.addReminderTopBtn} onPress={openAddModal} accessibilityRole="button">
+            <Ionicons name="add" size={18} color="#FFF" style={{ marginRight: 4 }} />
+            <Text style={styles.addReminderTopText}>Add Reminder</Text>
+          </Pressable>
         </View>
 
         {/* HEADING ROW */}
@@ -478,7 +442,7 @@ export default function NotificationsScreen() {
                 <Ionicons name="alarm-outline" size={32} color="#94A3B8" />
                 <Text style={[styles.emptyTitle, { color: mainText }]}>No reminders set yet</Text>
                 <Text style={[styles.emptyText, { color: mutedText }]}>
-                  Set up a study reminder to test immediate notifications or schedule study times.
+                  Set up a study reminder to receive alerts at your scheduled study times.
                 </Text>
                 <Pressable style={styles.browseButton} onPress={openAddModal}>
                   <Ionicons name="add-circle" size={16} color="#FFF" style={{ marginRight: 6 }} />
