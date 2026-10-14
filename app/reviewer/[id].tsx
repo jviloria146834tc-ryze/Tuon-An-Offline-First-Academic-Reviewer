@@ -396,7 +396,7 @@ export default function ReviewerDetailScreen() {
           <ToolCard
             icon="albums-outline"
             title="Flashcards"
-            description="Study with SRS"
+            description="Spaced Repetition"
             background="#E5F8FF"
             iconColor="#0087C4"
             dark={dark}

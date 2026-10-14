@@ -492,7 +492,7 @@ export default function FlashcardGeneratorScreen() {
                     {item.title}
                   </Text>
                   <Text style={[styles.deckCardSubtitle, dark && { color: '#94A3B8' }]}>
-                    {item.card_count} {item.card_count === 1 ? 'card' : 'cards'} · SRS Ready
+                    {item.card_count} {item.card_count === 1 ? 'card' : 'cards'} · Spaced Repetition
                   </Text>
                 </View>
                 <View style={[styles.studyBadge, dark && { backgroundColor: '#102544' }]}>
